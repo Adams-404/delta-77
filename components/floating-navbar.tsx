@@ -1,6 +1,7 @@
 "use client"
 import { Button } from "@/components/ui/button"
 import Link from "next/link"
+import Image from "next/image"
 
 export function FloatingNavbar() {
   const scrollToSection = (sectionId: string) => {
@@ -12,11 +13,19 @@ export function FloatingNavbar() {
 
   return (
     <nav className="fixed left-0 right-0 top-0 z-50 px-4 py-4">
-      <div className="mx-auto max-w-7xl rounded-2xl border-2 border-white/10 bg-white/5 px-6 py-4 backdrop-blur-sm">
+      <div className="mx-auto max-w-7xl rounded-2xl border-2 border-white/10 bg-white/5 px-6 py-2 backdrop-blur-sm">
         <div className="flex items-center justify-between">
           {/* Logo */}
           <button onClick={() => scrollToSection("home")} className="cursor-pointer">
-            <div className="flex items-center text-white [text-shadow:_0_2px_8px_rgb(0_0_0_/_40%)]">
+            <div className="flex items-center gap-2 text-white [text-shadow:_0_2px_8px_rgb(0_0_0_/_40%)]">
+              <div className="relative w-12 h-12">
+                <Image 
+                  src="/esux-logo.png" 
+                  alt="EsuX Logo" 
+                  fill 
+                  className="object-contain" 
+                />
+              </div>
               <span className="text-2xl font-bold tracking-tighter text-white">
                 EsuX
               </span>

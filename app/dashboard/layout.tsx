@@ -1,6 +1,7 @@
 "use client"
 import { useState, useEffect } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { usePathname, useRouter } from "next/navigation"
 import { cn } from "@/lib/utils"
 import { authClient } from "@/lib/auth-client"
@@ -66,7 +67,15 @@ export default function DashboardLayout({
   const SidebarContent = () => (
     <>
       <div className="p-6 flex items-center justify-between lg:block">
-        <Link href="/" onClick={() => setMobileMenuOpen(false)}>
+        <Link href="/" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2">
+          <div className="relative w-10 h-10">
+            <Image 
+              src="/esux-logo.png" 
+              alt="EsuX Logo" 
+              fill 
+              className="object-contain" 
+            />
+          </div>
           <span className="text-xl font-bold tracking-tighter text-neutral-900 dark:text-white">
             EsuX
           </span>

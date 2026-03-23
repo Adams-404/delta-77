@@ -10,6 +10,7 @@ import { FaqAccordion } from "@/components/ui/faq-accordion"
 import { Button } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
 import Link from "next/link"
+import Image from "next/image"
 import { useEffect, useRef } from "react"
 
 export default function Home() {
@@ -162,7 +163,15 @@ export default function Home() {
 
         <section id="home" className="flex min-w-full snap-start items-center justify-center px-4 py-20">
           <div className="mx-auto max-w-4xl">
-            <div className="text-center px-0 leading-5">
+            <div className="text-center px-0 leading-5 flex flex-col items-center">
+              <div className="relative mb-8 w-32 h-32 sm:w-40 sm:h-40">
+                <Image 
+                  src="/esux-logo.png" 
+                  alt="EsuX Emblem" 
+                  fill 
+                  className="object-contain" 
+                />
+              </div>
               <h1 className="mb-8 text-balance text-5xl tracking-tight text-white [text-shadow:_0_4px_20px_rgb(0_0_0_/_60%)] md:text-6xl lg:text-7xl">
                 <span className="font-open-sans-custom not-italic font-bold">Your Community Savings Circle, </span>{" "}
                 <span className="font-serif italic text-[#00D4AA]">Automated.</span>
