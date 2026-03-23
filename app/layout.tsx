@@ -36,9 +36,9 @@ const instrumentSerif = Instrument_Serif({
 })
 
 export const metadata: Metadata = {
-  title: "v0 App",
-  description: "Created with v0",
-  generator: "v0.app",
+  title: "EsuX | Modern Rotating Savings Circle (Esusu)",
+  description: "EsuX simplifies collective rotary groups or Esusu using WhatsApp automation, verifying identity seamlessly.",
+  generator: "EsuX",
 }
 
 export default function RootLayout({
