@@ -48,16 +48,56 @@ export default function DashboardLayout({
   const isKycPage = pathname === "/dashboard/kyc"
   const isSettingsPage = pathname === "/dashboard/settings"
   
-  const isRedirecting = session && !(session.user as any).bvnVerified && !isKycPage && !isSettingsPage
+  // Custom hook to get user data with BVN status
+  const [userWithBVN, setUserWithBVN] = useState<any>(null)
+  const [loadingUserData, setLoadingUserData] = useState(true)
   
   useEffect(() => {
-    if (isRedirecting) {
+    const fetchUserData = async () => {
+      // Wait a bit for session to be available
+      if (!session?.user?.id) {
+        setTimeout(() => setLoadingUserData(false), 1000)
+        return
+      }
+      
+      try {
+        const res = await fetch('/api/kyc/user-status', {
+          credentials: 'include'
+        })
+        
+        if (res.ok) {
+          const data = await res.json()
+          setUserWithBVN(data)
+        }
+      } catch (error) {
+        console.error("Failed to fetch user data:", error)
+      } finally {
+        setLoadingUserData(false)
+      }
+    }
+    
+    fetchUserData()
+  }, [session?.user?.id])
+  
+  // Get BVN verification status from fetched user data
+  const bvnVerified = userWithBVN?.bvnVerified || false
+  
+  // Only redirect if we're not loading and we have confirmed BVN status
+  const isRedirecting = session && !loadingUserData && !bvnVerified && !isKycPage && !isSettingsPage
+  
+  useEffect(() => {
+    // Only redirect if we have session data, BVN is not verified, and we're done loading
+    if (session && !loadingUserData && !bvnVerified && !isKycPage && !isSettingsPage) {
       router.push("/dashboard/kyc")
     }
-  }, [isRedirecting, router])
+  }, [session, bvnVerified, isKycPage, isSettingsPage, router, loadingUserData])
 
-  if (isRedirecting) {
-    return null
+  if (loadingUserData || isRedirecting) {
+    return (
+      <div className="flex h-screen w-full items-center justify-center bg-background">
+        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#6C3AFA]"></div>
+      </div>
+    )
   }
 
   const initials = session?.user?.name

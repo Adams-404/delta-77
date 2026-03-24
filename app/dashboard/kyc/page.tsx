@@ -42,10 +42,10 @@ export default function KYCPage() {
       // Refresh session to update bvnVerified status
       await authClient.getSession()
       
+      // Use full page reload to ensure fresh session data
       setTimeout(() => {
-        router.push("/dashboard")
-        router.refresh()
-      }, 2000)
+        window.location.href = "/dashboard"
+      }, 3000)
     } catch (err: any) {
       setError(err.message)
     } finally {
