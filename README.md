@@ -27,7 +27,7 @@
 
 ### 1. Clone the repository
 ```bash
-git clone git@github.com:Adams-404/Esux.git
+git clone git@github.com:Adams-404/delta-77.git
 cd Esux
 ```
 
