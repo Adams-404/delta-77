@@ -43,7 +43,7 @@ export default function LoginPage() {
           Log in to manage your savings circles.
         </p>
         {errorMsg && (
-          <p className="text-red-400 text-xs font-open-sans-custom mt-2 bg-red-900/40 p-2 rounded-md">
+          <p className="text-red-600 dark:text-red-400 text-xs font-open-sans-custom mt-2 bg-red-500/10 dark:bg-red-900/40 p-2 rounded-md border border-red-500/20">
             {errorMsg}
           </p>
         )}

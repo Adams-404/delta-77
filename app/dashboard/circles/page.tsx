@@ -5,10 +5,11 @@ import { GlassCard } from "@/components/ui/glass-card"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { db } from "@/lib/db/client"
-import { circles as circlesTable, circleMembers } from "@/lib/db/schema"
-import { eq, and, inArray, sql } from "drizzle-orm"
+import { circles as circlesTable, circleMembers, contributions as contributionsTable, rounds as roundsTable } from "@/lib/db/schema"
+import { eq, and, inArray, sql, sum } from "drizzle-orm"
 import Link from "next/link"
 import { QuickActions } from "@/components/dashboard/quick-actions"
+import { cn } from "@/lib/utils"
 
 export default async function CirclesPage() {
   const session = await auth.api.getSession({
@@ -35,6 +36,8 @@ export default async function CirclesPage() {
 
     if (userCircles.length > 0) {
       const circleIds = userCircles.map(c => c.id);
+      
+      // 3.1 Fetch member counts
       const memberCounts = await db
         .select({
           circleId: circleMembers.circleId,
@@ -43,12 +46,27 @@ export default async function CirclesPage() {
         .from(circleMembers)
         .where(and(inArray(circleMembers.circleId, circleIds), eq(circleMembers.status, "accepted")))
         .groupBy(circleMembers.circleId);
+
+      // 3.2 Fetch total contributions per circle via rounds
+      const contributionResults = await db
+        .select({
+          circleId: roundsTable.circleId,
+          total: sum(contributionsTable.amountPaid)
+        })
+        .from(contributionsTable)
+        .innerJoin(roundsTable, eq(contributionsTable.roundId, roundsTable.id))
+        .where(inArray(roundsTable.circleId, circleIds))
+        .groupBy(roundsTable.circleId);
         
       userCircles = userCircles.map(circle => {
         const countObj = memberCounts.find(m => m.circleId === circle.id);
+        const contribObj = contributionResults.find(c => c.circleId === circle.id);
+        const totalSaved = contribObj?.total ? parseFloat(contribObj.total) : 0;
+        
         return {
           ...circle,
-          membersCount: countObj ? countObj.count : 0
+          membersCount: countObj ? countObj.count : 0,
+          totalSavedAmount: totalSaved
         };
       });
     }
@@ -63,8 +81,9 @@ export default async function CirclesPage() {
     frequency: circle.frequency.charAt(0).toUpperCase() + circle.frequency.slice(1),
     members: circle.membersCount || 0,
     membersTotal: circle.maxMembers,
+    contributionAmount: parseFloat(circle.contributionAmount),
+    totalSaved: circle.totalSavedAmount || 0,
     nextPayout: circle.startDate ? new Date(circle.startDate).toLocaleDateString() : "TBD",
-    totalSaved: "₦0", // Aggregate contributions later
     status: circle.status === "pending" ? "Upcoming" : circle.status.charAt(0).toUpperCase() + circle.status.slice(1)
   }))
 
@@ -98,26 +117,26 @@ export default async function CirclesPage() {
               </span>
             </div>
 
-            <div className="grid grid-cols-2 gap-4 py-2">
+            <div className="grid grid-cols-2 gap-4 py-2 text-xs">
               <div>
-                <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Contribution</span>
-                <p className="text-base font-bold text-foreground mt-1">{circle.contribution}</p>
+                <span className="text-muted-foreground font-medium uppercase tracking-wider">Per Round</span>
+                <p className="text-sm font-bold text-foreground mt-1">{circle.contribution}</p>
               </div>
               <div>
-                <span className="text-xs text-muted-foreground font-medium uppercase tracking-wider">Total Saved</span>
-                <p className="text-base font-bold text-[#00D4AA] mt-1">{circle.totalSaved}</p>
+                <span className="text-muted-foreground font-medium uppercase tracking-wider">Total Pool Progress</span>
+                <p className="text-sm font-bold text-[#00D4AA] mt-1">₦{circle.totalSaved.toLocaleString()}</p>
               </div>
             </div>
 
             <div className="space-y-2">
-              <div className="flex justify-between text-xs text-muted-foreground">
-                <span>Members</span>
-                <span>{circle.members}/{circle.membersTotal}</span>
+              <div className="flex justify-between text-[10px] text-muted-foreground font-semibold uppercase tracking-widest">
+                <span>Contribution Quota</span>
+                <span>{Math.min(100, (circle.totalSaved / (circle.membersTotal * circle.contributionAmount) * 100)).toFixed(0)}%</span>
               </div>
-              <div className="w-full bg-neutral-100 dark:bg-white/5 h-2 rounded-full overflow-hidden">
+              <div className="w-full bg-neutral-100 dark:bg-white/5 h-2 rounded-full overflow-hidden border border-neutral-200/20 dark:border-white/5">
                 <div 
-                  className="bg-gradient-to-r from-[#6C3AFA] to-[#00D4AA] h-full rounded-full" 
-                  style={{ width: `${(circle.members / circle.membersTotal) * 100}%` }}
+                  className="bg-gradient-to-r from-[#6C3AFA] to-[#00D4AA] h-full rounded-full transition-all duration-1000 ease-out shadow-[0_0_10px_rgba(108,58,250,0.3)]" 
+                  style={{ width: `${Math.min(100, (circle.totalSaved / (circle.membersTotal * circle.contributionAmount) * 100))}%` }}
                 />
               </div>
             </div>

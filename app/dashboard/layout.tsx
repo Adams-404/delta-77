@@ -35,7 +35,7 @@ export default function DashboardLayout({
 }) {
   const pathname = usePathname()
   const router = useRouter()
-  const { data: session } = authClient.useSession()
+  const { data: session, isPending: isSessionPending } = authClient.useSession()
   const [showLogout, setShowLogout] = useState(false)
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
 
@@ -53,6 +53,12 @@ export default function DashboardLayout({
   const [loadingUserData, setLoadingUserData] = useState(true)
   
   useEffect(() => {
+    // If session is definitively gone (not pending and no session), redirect
+    if (!isSessionPending && !session) {
+      router.push("/login")
+      return
+    }
+
     const fetchUserData = async () => {
       // Wait a bit for session to be available
       if (!session?.user?.id) {
@@ -92,7 +98,7 @@ export default function DashboardLayout({
     }
   }, [session, bvnVerified, isKycPage, isSettingsPage, router, loadingUserData, userWithBVN])
 
-  if (loadingUserData || isRedirecting) {
+  if (isSessionPending || loadingUserData || isRedirecting) {
     return (
       <div className="flex h-screen w-full items-center justify-center bg-background">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-[#6C3AFA]"></div>
