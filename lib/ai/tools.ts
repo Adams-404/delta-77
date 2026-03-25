@@ -18,7 +18,7 @@ export const AI_TOOLS = [
     type: "function",
     function: {
       name: "create_circle",
-      description: "Create a new savings circle (Ajo/Esusu) for the user.",
+      description: "Create a new savings circle (Ajo/Esusu) for the user. Returns the 'slug' which MUST be used for the dashboard link.",
       parameters: {
         type: "object",
         properties: {
