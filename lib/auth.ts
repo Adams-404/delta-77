@@ -10,6 +10,18 @@ export const auth = betterAuth({
             ...schema
         }
     }),
+    user: {
+        additionalFields: {
+            phoneNumber: {
+                type: "string",
+                required: false,
+            },
+            bvnVerified: {
+                type: "boolean",
+                required: false,
+            }
+        }
+    },
     emailAndPassword: {
         enabled: true,
     },

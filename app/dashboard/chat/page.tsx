@@ -1,59 +1,282 @@
 "use client"
-import { SendIcon, BotIcon } from "lucide-react"
+import { useState, useRef, useEffect } from "react"
+import { SendIcon, BotIcon, Sparkles, History, ArrowUpRight, Loader2, User, Info } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
-import { GlassCard } from "@/components/ui/glass-card"
+import { cn } from "@/lib/utils"
+import { toast } from "sonner"
+import { motion, AnimatePresence } from "framer-motion"
+
+interface Message {
+  role: "user" | "assistant"
+  content: string
+  createdAt: string
+}
+
+const SUGGESTIONS = [
+  "How much have I saved?",
+  "Create a new circle",
+  "Who is next for payout?",
+  "Check my contributions"
+]
 
 export default function ChatPage() {
-  const messages = [
-    { sender: "bot", text: "Hello! I am your AI savings bot. How can I help you manage your circle today?", time: "12:00 PM" },
-    { sender: "user", text: "How much did I contribute to Dev Team Pool last week?", time: "12:01 PM" },
-    { sender: "bot", text: "You contributed ₦5,000 on Nov 20 to the Dev Team Pool.", time: "12:01 PM" },
-  ]
+  const [messages, setMessages] = useState<Message[]>([])
+  const [input, setInput] = useState("")
+  const [isLoading, setIsLoading] = useState(false)
+  const [isFetching, setIsFetching] = useState(true)
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    async function fetchHistory() {
+      try {
+        const res = await fetch("/api/chat/history")
+        if (res.ok) {
+          const data = await res.json()
+          setMessages(data)
+        }
+      } catch (err) {
+        console.error("Failed to fetch chat history", err)
+      } finally {
+        setIsFetching(false)
+      }
+    }
+    fetchHistory()
+  }, [])
+
+  useEffect(() => {
+    if (scrollRef.current) {
+      scrollRef.current.scrollTo({
+        top: scrollRef.current.scrollHeight,
+        behavior: "smooth"
+      })
+    }
+  }, [messages, isLoading])
+
+  const handleSend = async (text?: string) => {
+    const messageContent = text || input
+    if (!messageContent.trim() || isLoading) return
+
+    const userMsg: Message = {
+      role: "user",
+      content: messageContent,
+      createdAt: new Date().toISOString()
+    }
+
+    setMessages(prev => [...prev, userMsg])
+    setInput("")
+    setIsLoading(true)
+
+    try {
+      const res = await fetch("/api/chat", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ message: messageContent })
+      })
+
+      if (!res.ok) throw new Error("Failed to send message")
+
+      const data = await res.json()
+      const botMsg: Message = {
+        role: "assistant",
+        content: data.response,
+        createdAt: new Date().toISOString()
+      }
+      setMessages(prev => [...prev, botMsg])
+    } catch (err) {
+      toast.error("AI Assistant is having trouble. Please try again.")
+    } finally {
+      setIsLoading(false)
+    }
+  }
 
   return (
-    <div className="h-[calc(100vh-140px)] flex flex-col space-y-4">
-      <div>
-        <h1 className="text-2xl font-bold font-open-sans-custom text-foreground">Chat with AI</h1>
-        <p className="text-muted-foreground text-sm mt-1">Ask questions or configure circles using our conversational bot.</p>
-      </div>
+    <div className="h-full max-w-4xl mx-auto flex flex-col relative pb-4 overflow-hidden">
+      {/* Glow Effects */}
+      <div className="absolute top-0 left-1/2 -translate-x-1/2 w-full h-[500px] bg-gradient-to-b from-[#6C3AFA]/10 to-transparent pointer-events-none opacity-50 blur-[100px]" />
 
-      <GlassCard className="flex-1 p-0 flex flex-col overflow-hidden">
-        {/* Messages Feed */}
-        <div className="flex-1 overflow-y-auto space-y-4 p-6 pr-4">
-          {messages.map((msg, index) => (
-            <div 
-              key={index} 
-              className={cn(
-                "flex items-start gap-4 p-4 rounded-xl max-w-xl",
-                msg.sender === "user" 
-                  ? "bg-[#6C3AFA]/10 dark:bg-[#6C3AFA]/20 border border-[#6C3AFA]/10 ml-auto" 
-                  : "bg-neutral-50 dark:bg-white/5 border border-neutral-100 dark:border-white/10"
-              )}
+      {/* Header Bar */}
+      <motion.div 
+        initial={{ opacity: 0, y: -10 }}
+        animate={{ opacity: 1, y: 0 }}
+        className="flex items-center justify-between px-4 py-2 border-b border-white/5 bg-neutral-900/40 backdrop-blur-md rounded-t-3xl z-30"
+      >
+        <div className="flex items-center gap-3">
+          <div className="w-10 h-10 bg-[#6C3AFA] rounded-xl flex items-center justify-center shadow-lg shadow-purple-500/20">
+            <BotIcon className="w-5 h-5 text-white" />
+          </div>
+          <div>
+            <h2 className="text-sm font-bold text-white tracking-wide">EsuX AI Agent</h2>
+            <div className="flex items-center gap-1.5">
+               <span className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse" />
+               <span className="text-[10px] text-muted-foreground font-medium">Online & Ready</span>
+            </div>
+          </div>
+        </div>
+        <div className="flex items-center gap-2">
+           <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white rounded-full">
+             <History className="w-4 h-4" />
+           </Button>
+           <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white rounded-full">
+             <Info className="w-4 h-4" />
+           </Button>
+        </div>
+      </motion.div>
+
+      {/* Chat Container */}
+      <div className="flex-1 overflow-hidden flex flex-col bg-neutral-900/20 border-x border-white/5 relative z-10">
+        <div 
+          ref={scrollRef}
+          className="flex-1 overflow-y-auto px-4 md:px-8 py-8 space-y-8 scroll-smooth custom-scrollbar"
+        >
+          {isFetching ? (
+            <div className="flex flex-col items-center justify-center h-full space-y-4 opacity-40">
+              <Loader2 className="w-8 h-8 animate-spin text-[#6C3AFA]" />
+              <p className="text-xs font-bold tracking-[0.2em] uppercase">Initializing Brain</p>
+            </div>
+          ) : messages.length === 0 ? (
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.98 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="flex flex-col items-center justify-center h-full text-center space-y-10"
             >
-              {msg.sender === "bot" && (
-                <div className="p-2 bg-[#6C3AFA]/10 dark:bg-[#6C3AFA]/20 rounded-lg">
-                  <BotIcon className="w-5 h-5 text-[#6C3AFA]" />
+              <div className="space-y-4 max-w-sm">
+                <Sparkles className="w-10 h-10 text-[#6C3AFA] mx-auto animate-pulse" />
+                <h3 className="font-extrabold text-3xl text-white tracking-tight">Your Ajo circle, just a message away.</h3>
+                <p className="text-sm text-muted-foreground/80 leading-relaxed px-4">
+                  Manage contributions, track payouts, and coordinate with members using natural language.
+                </p>
+              </div>
+
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 w-full max-w-lg">
+                {SUGGESTIONS.map((s, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleSend(s)}
+                    className="group flex flex-col items-start p-4 rounded-2xl bg-white/[0.03] border border-white/5 hover:border-[#6C3AFA]/50 hover:bg-[#6C3AFA]/5 transition-all text-left cursor-pointer active:scale-95"
+                  >
+                    <div className="flex items-center justify-between w-full mb-1">
+                      <span className="text-[10px] font-bold text-[#6C3AFA] tracking-[0.1em] uppercase opacity-70">Query Idea</span>
+                      <ArrowUpRight className="w-3 h-3 text-muted-foreground group-hover:text-[#6C3AFA] transition-colors" />
+                    </div>
+                    <span className="text-sm font-semibold text-white/90 group-hover:text-white">{s}</span>
+                  </button>
+                ))}
+              </div>
+            </motion.div>
+          ) : (
+            <div className="space-y-8 max-w-3xl mx-auto w-full pb-8">
+              {messages.map((msg, index) => (
+                <motion.div 
+                  key={index}
+                  initial={{ opacity: 0, y: 12 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className={cn(
+                    "flex w-full gap-4",
+                    msg.role === "user" ? "flex-row-reverse" : "flex-row"
+                  )}
+                >
+                   {/* Avatar Placeholder */}
+                   <div className={cn(
+                     "w-8 h-8 rounded-full shrink-0 flex items-center justify-center text-xs font-bold",
+                     msg.role === "user" ? "bg-[#00D4AA]/20 text-[#00D4AA]" : "bg-[#6C3AFA]/20 text-[#6C3AFA]"
+                   )}>
+                     {msg.role === "user" ? <User className="w-4 h-4" /> : <BotIcon className="w-4 h-4" />}
+                   </div>
+
+                   <div className={cn(
+                     "max-w-[85%] md:max-w-[70%] space-y-1.5",
+                     msg.role === "user" ? "text-right" : "text-left"
+                   )}>
+                      <div className={cn(
+                        "inline-block px-5 py-3.5 rounded-3xl text-[15px] leading-relaxed",
+                        msg.role === "user" 
+                          ? "bg-[#6C3AFA] text-white rounded-tr-sm shadow-xl shadow-purple-900/10" 
+                          : "bg-white/[0.07] border border-white/10 text-white rounded-tl-sm shadow-sm"
+                      )}>
+                        {msg.content}
+                      </div>
+                      <div className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest px-1">
+                        {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                   </div>
+                </motion.div>
+              ))}
+              
+              {isLoading && (
+                <div className="flex gap-4">
+                  <div className="w-8 h-8 rounded-full bg-[#6C3AFA]/20 text-[#6C3AFA] shrink-0 flex items-center justify-center">
+                    <BotIcon className="w-4 h-4" />
+                  </div>
+                  <div className="bg-white/[0.05] px-5 py-4 rounded-3xl rounded-tl-sm flex items-center gap-1.5">
+                    <div className="w-1.5 h-1.5 bg-[#6C3AFA] rounded-full animate-bounce [animation-delay:-0.3s]" />
+                    <div className="w-1.5 h-1.5 bg-[#6C3AFA] rounded-full animate-bounce [animation-delay:-0.15s]" />
+                    <div className="w-1.5 h-1.5 bg-[#6C3AFA] rounded-full animate-bounce" />
+                  </div>
                 </div>
               )}
-              <div className="space-y-1">
-                <p className="text-sm text-foreground">{msg.text}</p>
-                <span className="text-xs text-muted-foreground">{msg.time}</span>
-              </div>
             </div>
-          ))}
+          )}
         </div>
+      </div>
 
-        {/* Input Bar */}
-        <div className="p-6 pt-4 border-t border-neutral-100 dark:border-white/10 flex gap-2">
-          <Input placeholder="Type message or instruction..." className="bg-white/50 dark:bg-white/5 border-neutral-200 dark:border-white/10 text-foreground flex-1" />
-          <Button className="bg-[#6C3AFA] hover:bg-[#5B30D9] text-white p-3 shadow-lg shadow-purple-500/20">
-            <SendIcon className="w-4 h-4" />
+      {/* Input Bar Section */}
+      <div className="px-4 py-4 md:py-6 bg-neutral-900/60 backdrop-blur-3xl border-x border-b border-white/5 rounded-b-3xl z-40 relative">
+        <div className="max-w-3xl mx-auto flex items-end gap-3 relative">
+          <div className="flex-1 relative bg-white/[0.03] border-2 border-white/5 rounded-2xl focus-within:border-[#6C3AFA]/40 transition-all px-4 py-2 flex items-end min-h-[56px] group">
+            <textarea
+              rows={1}
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" && !e.shiftKey) {
+                  e.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder="Ask me something about your circles..."
+              className="w-full bg-transparent border-none text-white text-[15px] resize-none py-2 focus:ring-0 placeholder:text-muted-foreground/40 flex-1 custom-scrollbar max-h-40"
+              style={{ height: 'auto' }}
+            />
+            <div className="pb-1.5 pr-1">
+              <Sparkles className="w-4 h-4 text-[#6C3AFA] opacity-30 group-focus-within:opacity-100 group-focus-within:animate-pulse transition-opacity" />
+            </div>
+          </div>
+          
+          <Button 
+            onClick={() => handleSend()}
+            disabled={isLoading || !input.trim()}
+            className="w-14 h-14 bg-[#6C3AFA] hover:bg-[#5B30D9] text-white rounded-2xl shadow-xl shadow-purple-500/10 active:scale-95 transition-all group shrink-0 cursor-pointer"
+          >
+            {isLoading ? <Loader2 className="w-5 h-5 animate-spin" /> : <SendIcon className="w-5 h-5 group-hover:translate-x-0.5 group-hover:-translate-y-0.5 transition-transform" />}
           </Button>
         </div>
-      </GlassCard>
+        
+        <div className="flex justify-center gap-6 mt-4">
+           {["Privacy Secured", "End-to-End Analytics", "Smart Payouts"].map((tag, i) => (
+             <div key={i} className="flex items-center gap-1.5 opacity-30">
+               <div className="w-1 h-1 bg-[#00D4AA] rounded-full" />
+               <span className="text-[9px] font-bold text-white uppercase tracking-wider">{tag}</span>
+             </div>
+           ))}
+        </div>
+      </div>
+
+      <style jsx global>{`
+        .custom-scrollbar::-webkit-scrollbar {
+          width: 4px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-track {
+          background: transparent;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb {
+          background: rgba(255, 255, 255, 0.05);
+          border-radius: 10px;
+        }
+        .custom-scrollbar::-webkit-scrollbar-thumb:hover {
+          background: rgba(255, 255, 255, 0.1);
+        }
+      `}</style>
     </div>
   )
 }
-
-import { cn } from "@/lib/utils"
