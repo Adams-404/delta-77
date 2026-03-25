@@ -25,7 +25,7 @@ export const session = pgTable("session", {
   token: text('token').notNull().unique(),
   createdAt: timestamp('created_at').notNull(),
   updatedAt: timestamp('updated_at').notNull(),
-  userId: text('user_id').notNull().references(() => user.id),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
   ipAddress: text('ip_address'),
   userAgent: text('user_agent'),
 });
@@ -34,7 +34,7 @@ export const account = pgTable("account", {
   id: text("id").primaryKey().notNull(),
   accountId: text('account_id').notNull(),
   providerId: text('provider_id').notNull(),
-  userId: text('user_id').notNull().references(() => user.id),
+  userId: text('user_id').notNull().references(() => user.id, { onDelete: 'cascade' }),
   accessToken: text('access_token'),
   refreshToken: text('refresh_token'),
   idToken: text('id_token'),
@@ -60,7 +60,7 @@ export const circles = pgTable("circles", {
   name: text("name").notNull(),
   slug: text("slug").unique(),
   description: text("description"),
-  organizerId: text("organizer_id").notNull().references(() => user.id),
+  organizerId: text("organizer_id").notNull().references(() => user.id, { onDelete: 'cascade' }),
   contributionAmount: decimal("contribution_amount", { precision: 15, scale: 2 }).notNull(),
   frequency: text("frequency").notNull(), // enum: weekly | monthly | custom
   maxMembers: integer("max_members").notNull(),
@@ -76,8 +76,8 @@ export const circles = pgTable("circles", {
 
 export const circleMembers = pgTable("circle_members", {
   id: text("id").primaryKey().notNull(),
-  circleId: text("circle_id").notNull().references(() => circles.id),
-  userId: text("user_id").references(() => user.id), 
+  circleId: text("circle_id").notNull().references(() => circles.id, { onDelete: 'cascade' }),
+  userId: text("user_id").references(() => user.id, { onDelete: 'cascade' }), 
   phoneNumber: text("phone_number"), // invite number
   payoutPosition: integer("payout_position"),
   status: text("status").default("invited").notNull(), // enum: invited | accepted | declined | removed
@@ -86,9 +86,9 @@ export const circleMembers = pgTable("circle_members", {
 
 export const rounds = pgTable("rounds", {
   id: text("id").primaryKey().notNull(),
-  circleId: text("circle_id").notNull().references(() => circles.id),
+  circleId: text("circle_id").notNull().references(() => circles.id, { onDelete: 'cascade' }),
   roundNumber: integer("round_number").notNull(),
-  recipientId: text("recipient_id").notNull().references(() => user.id),
+  recipientId: text("recipient_id").notNull().references(() => user.id, { onDelete: 'cascade' }),
   totalExpected: decimal("total_expected", { precision: 15, scale: 2 }).notNull(),
   totalCollected: decimal("total_collected", { precision: 15, scale: 2 }).default("0").notNull(),
   status: text("status").default("ongoing").notNull(), // enum: ongoing | completed | failed
@@ -99,8 +99,8 @@ export const rounds = pgTable("rounds", {
 
 export const contributions = pgTable("contributions", {
   id: text("id").primaryKey().notNull(),
-  roundId: text("round_id").notNull().references(() => rounds.id),
-  memberId: text("member_id").notNull().references(() => user.id),
+  roundId: text("round_id").notNull().references(() => rounds.id, { onDelete: 'cascade' }),
+  memberId: text("member_id").notNull().references(() => user.id, { onDelete: 'cascade' }),
   amountExpected: decimal("amount_expected", { precision: 15, scale: 2 }).notNull(),
   amountPaid: decimal("amount_paid", { precision: 15, scale: 2 }).default("0").notNull(),
   transactionRef: text("transaction_ref"),
@@ -112,7 +112,7 @@ export const contributions = pgTable("contributions", {
 
 export const messages = pgTable("messages", {
   id: text("id").primaryKey().notNull(),
-  userId: text("user_id").references(() => user.id),
+  userId: text("user_id").references(() => user.id, { onDelete: 'cascade' }),
   phoneNumber: text("phone_number"),
   role: text("role").notNull(), // enum: user | assistant
   content: text("content").notNull(),
@@ -122,8 +122,8 @@ export const messages = pgTable("messages", {
 
 export const notifications = pgTable("notifications", {
   id: text("id").primaryKey().notNull(),
-  userId: text("user_id").notNull().references(() => user.id),
-  circleId: text("circle_id").references(() => circles.id),
+  userId: text("user_id").notNull().references(() => user.id, { onDelete: 'cascade' }),
+  circleId: text("circle_id").references(() => circles.id, { onDelete: 'cascade' }),
   type: text("type").notNull(), // enum: reminder | payment_received | payout_sent | member_joined | member_declined
   message: text("message").notNull(),
   read: boolean("read").default(false).notNull(),
@@ -135,7 +135,7 @@ export const notifications = pgTable("notifications", {
  */
 export const verificationLogs = pgTable("verification_logs", {
   id: uuid("id").primaryKey().defaultRandom().notNull(),
-  userId: text("user_id").references(() => user.id),
+  userId: text("user_id").references(() => user.id, { onDelete: 'cascade' }),
   provider: text("provider").notNull(), // 'interswitch' or 'twilio'
   type: text("type").notNull(), // 'bvn' or 'otp'
   status: text("status").notNull(), // 'success', 'failed', 'pending'
