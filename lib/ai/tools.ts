@@ -1,4 +1,9 @@
-import { createCircleCore } from "@/app/actions/circles";
+import { 
+  createCircleCore, 
+  listUserCirclesCore, 
+  getCircleDetailsCore, 
+  joinCircleCore 
+} from "@/app/actions/circles";
 import { db } from "@/lib/db";
 import { contributions as contributionsTable } from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
@@ -29,6 +34,45 @@ export const AI_TOOLS = [
   {
     type: "function",
     function: {
+      name: "list_my_circles",
+      description: "List all savings circles the user is currently a member of.",
+      parameters: {
+        type: "object",
+        properties: {}
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_circle_details",
+      description: "Get detailed information about a specific circle, including its members and status.",
+      parameters: {
+        type: "object",
+        properties: {
+          circleIdOrSlug: { type: "string", description: "The ID or the URL slug of the circle." }
+        },
+        required: ["circleIdOrSlug"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "join_circle",
+      description: "Join an existing savings circle.",
+      parameters: {
+        type: "object",
+        properties: {
+          circleId: { type: "string", description: "The unique ID of the circle to join." }
+        },
+        required: ["circleId"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
       name: "get_financial_summary",
       description: "Get a summary of the user's current savings and active circles.",
       parameters: {
@@ -51,13 +95,28 @@ export async function executeAiAction(toolCall: any, context: { userId?: string,
   switch (name) {
     case "create_circle":
       if (!context.userId) return { error: "User not authenticated" };
-      return await createCircleCore(context.userId, {
+      const newCircle = await createCircleCore(context.userId, {
         name: args.name,
         description: args.description || "",
         amount: args.amount,
         frequency: args.frequency,
         maxMembers: args.maxMembers
       });
+      return {
+        ...newCircle,
+        message: `Circle created! View it at /dashboard/circles/${newCircle.slug}`
+      };
+
+    case "list_my_circles":
+      if (!context.userId) return { error: "User not identified" };
+      return await listUserCirclesCore(context.userId);
+
+    case "get_circle_details":
+      return await getCircleDetailsCore(args.circleIdOrSlug);
+
+    case "join_circle":
+      if (!context.userId) return { error: "User not authenticated" };
+      return await joinCircleCore(context.userId, args.circleId);
 
     case "get_financial_summary":
       if (!context.userId) return { error: "User not identified" };

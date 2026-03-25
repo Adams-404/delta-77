@@ -45,7 +45,88 @@ export async function createCircleCore(userId: string, data: {
     joinedAt: new Date(),
   });
 
-  return { success: true, circleId };
+  return { success: true, circleId, slug };
+}
+
+export async function listUserCirclesCore(userId: string) {
+  const userCircles = await db
+    .select({
+      id: circles.id,
+      name: circles.name,
+      slug: circles.slug,
+      status: circles.status,
+      amount: circles.contributionAmount,
+      frequency: circles.frequency,
+    })
+    .from(circleMembers)
+    .innerJoin(circles, eq(circleMembers.circleId, circles.id))
+    .where(eq(circleMembers.userId, userId));
+
+  return userCircles;
+}
+
+export async function joinCircleCore(userId: string, circleId: string) {
+  // Check if circle exists
+  const [existing] = await db.select().from(circles).where(eq(circles.id, circleId));
+  if (!existing) throw new Error("Circle not found");
+
+  // Check if already joined
+  const [existingMember] = await db
+    .select()
+    .from(circleMembers)
+    .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, userId)));
+
+  if (existingMember) {
+    if (existingMember.status === "accepted") {
+      return { success: true, message: "Already a member" };
+    }
+    // Re-apply if previously rejected or pending
+    await db.update(circleMembers)
+      .set({ status: "pending", joinedAt: new Date() })
+      .where(eq(circleMembers.id, existingMember.id));
+    return { success: true, status: "pending" };
+  }
+
+  await db.insert(circleMembers).values({
+    id: generateId(),
+    circleId: circleId,
+    userId: userId,
+    status: "pending",
+    joinedAt: new Date(),
+  });
+
+  return { success: true, status: "pending" };
+}
+
+export async function getCircleDetailsCore(circleIdOrSlug: string) {
+  const [circle] = await db
+    .select()
+    .from(circles)
+    .where(eq(circles.slug, circleIdOrSlug)); // Try slug first
+  
+  let finalCircle = circle;
+  if (!finalCircle) {
+    const [byId] = await db.select().from(circles).where(eq(circles.id, circleIdOrSlug));
+    finalCircle = byId;
+  }
+
+  if (!finalCircle) return { error: "Circle not found" };
+
+  const members = await db
+    .select({
+      id: circleMembers.id,
+      userId: circleMembers.userId,
+      status: circleMembers.status,
+      joinedAt: circleMembers.joinedAt,
+    })
+    .from(circleMembers)
+    .where(eq(circleMembers.circleId, finalCircle.id));
+
+  return {
+    ...finalCircle,
+    members,
+    memberCount: members.length
+  };
 }
 
 // --- Server Actions (Web Interface) ---
