@@ -2,6 +2,7 @@ import {
   createCircleCore, 
   listUserCirclesCore, 
   getCircleDetailsCore, 
+  searchCirclesCore,
   joinCircleCore 
 } from "@/app/actions/circles";
 import { db } from "@/lib/db";
@@ -59,12 +60,26 @@ export const AI_TOOLS = [
   {
     type: "function",
     function: {
-      name: "join_circle",
-      description: "Join an existing savings circle.",
+      name: "search_circles",
+      description: "Search for existing savings circles by name to find their IDs.",
       parameters: {
         type: "object",
         properties: {
-          circleId: { type: "string", description: "The unique ID of the circle to join." }
+          query: { type: "string", description: "The name or part of the name of the circle to search for." }
+        },
+        required: ["query"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "join_circle",
+      description: "Join an existing savings circle. Requires a valid Circle ID. If the user doesn't have an ID, use search_circles first.",
+      parameters: {
+        type: "object",
+        properties: {
+          circleId: { type: "string", description: "The unique ID of the circle to join. NEVER guess this ID; if unknown, ask the user or search." }
         },
         required: ["circleId"]
       }
@@ -113,6 +128,9 @@ export async function executeAiAction(toolCall: any, context: { userId?: string,
 
     case "get_circle_details":
       return await getCircleDetailsCore(args.circleIdOrSlug);
+
+    case "search_circles":
+      return await searchCirclesCore(args.query);
 
     case "join_circle":
       if (!context.userId) return { error: "User not authenticated" };

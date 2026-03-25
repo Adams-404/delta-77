@@ -4,7 +4,7 @@ import { circles, circleMembers } from "@/lib/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { eq, and } from "drizzle-orm";
+import { eq, and, ilike, sql } from "drizzle-orm";
 
 // Helper to generate quick random string IDs
 const generateId = () => Math.random().toString(36).substring(2, 11).toUpperCase();
@@ -68,7 +68,7 @@ export async function listUserCirclesCore(userId: string) {
 export async function joinCircleCore(userId: string, circleId: string) {
   // Check if circle exists
   const [existing] = await db.select().from(circles).where(eq(circles.id, circleId));
-  if (!existing) throw new Error("Circle not found");
+  if (!existing) return { error: "Circle not found. Please provide a valid Circle ID." };
 
   // Check if already joined
   const [existingMember] = await db
@@ -127,6 +127,26 @@ export async function getCircleDetailsCore(circleIdOrSlug: string) {
     members,
     memberCount: members.length
   };
+}
+
+export async function searchCirclesCore(query: string) {
+  const results = await db
+    .select({
+      id: circles.id,
+      name: circles.name,
+      slug: circles.slug,
+      amount: circles.contributionAmount,
+      frequency: circles.frequency,
+      status: circles.status,
+      memberCount: sql<number>`count(${circleMembers.id})::int`,
+    })
+    .from(circles)
+    .leftJoin(circleMembers, eq(circles.id, circleMembers.circleId))
+    .where(ilike(circles.name, `%${query}%`))
+    .groupBy(circles.id)
+    .limit(5);
+
+  return results;
 }
 
 // --- Server Actions (Web Interface) ---
