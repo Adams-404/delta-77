@@ -1,11 +1,12 @@
 "use client"
 import { useState, useRef, useEffect } from "react"
-import { SendIcon, BotIcon, Sparkles, History, ArrowUpRight, Loader2, User, Info } from "lucide-react"
+import { SendIcon, BotIcon, Sparkles, History, ArrowUpRight, Loader2, User, Info, Plus } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
 import { toast } from "sonner"
 import { motion, AnimatePresence } from "framer-motion"
+import Link from "next/link"
 
 interface Message {
   role: "user" | "assistant"
@@ -114,10 +115,48 @@ export default function ChatPage() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-           <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white rounded-full">
+           <Button 
+             variant="ghost" 
+             size="icon" 
+             className="text-muted-foreground hover:text-white rounded-xl hover:bg-white/5"
+             onClick={async () => {
+               if (!confirm("Are you sure you want to clear your chat history?")) return;
+               try {
+                 const res = await fetch("/api/chat/history", { method: "DELETE" });
+                 if (res.ok) {
+                   setMessages([]);
+                   toast.success("Chat history cleared!");
+                 }
+               } catch (err) {
+                 toast.error("Failed to clear history.");
+               }
+             }}
+           >
+             <Plus className="w-4 h-4" />
+           </Button>
+           <Button 
+             variant="ghost" 
+             size="icon" 
+             className="text-muted-foreground hover:text-white rounded-xl hover:bg-white/5"
+             onClick={async () => {
+                setIsFetching(true);
+                try {
+                  const res = await fetch("/api/chat/history");
+                  if (res.ok) {
+                    const data = await res.json();
+                    setMessages(data);
+                    toast.success("History refreshed!");
+                  }
+                } catch (err) {
+                  toast.error("Failed to load history.");
+                } finally {
+                  setIsFetching(false);
+                }
+             }}
+           >
              <History className="w-4 h-4" />
            </Button>
-           <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white rounded-full">
+           <Button variant="ghost" size="icon" className="text-muted-foreground hover:text-white rounded-xl hover:bg-white/5">
              <Info className="w-4 h-4" />
            </Button>
         </div>
@@ -184,18 +223,97 @@ export default function ChatPage() {
                      {msg.role === "user" ? <User className="w-4 h-4" /> : <BotIcon className="w-4 h-4" />}
                    </div>
 
-                   <div className={cn(
-                     "max-w-[85%] md:max-w-[70%] space-y-1.5",
-                     msg.role === "user" ? "text-right" : "text-left"
-                   )}>
-                      <div className={cn(
-                        "inline-block px-5 py-3.5 rounded-3xl text-[15px] leading-relaxed",
-                        msg.role === "user" 
-                          ? "bg-[#6C3AFA] text-white rounded-tr-sm shadow-xl shadow-purple-900/10" 
-                          : "bg-white/[0.07] border border-white/10 text-white rounded-tl-sm shadow-sm"
-                      )}>
-                        {msg.content}
-                      </div>
+                    <div className={cn(
+                      "max-w-[85%] md:max-w-[70%] space-y-2",
+                      msg.role === "user" ? "text-right" : "text-left"
+                    )}>
+                       <div className={cn(
+                         "inline-block px-5 py-3.5 rounded-3xl text-[15px] leading-relaxed transition-all shadow-sm",
+                         msg.role === "user" 
+                           ? "bg-[#6C3AFA] text-white rounded-tr-sm shadow-purple-900/10" 
+                           : "bg-white/[0.07] border border-white/10 text-white rounded-tl-sm"
+                       )}>
+                         <div className="space-y-1">
+                           {msg.content.split("[ACTION:")[0].split("\n").map((line, i) => {
+                              if (!line.trim()) return <div key={i} className="h-2" />;
+                              // Handle basic bold formatting
+                              const parts = line.split(/(\*\*.*?\*\*)/g);
+                              return (
+                                <div key={i} className="leading-relaxed">
+                                  {parts.map((p, j) => {
+                                    if (p.startsWith("**") && p.endsWith("**")) {
+                                      return <strong key={j} className="text-white font-extrabold drop-shadow-sm">{p.slice(2, -2)}</strong>;
+                                    }
+                                    
+                                    // Detect dashboard links
+                                    if (p.includes("/dashboard/")) {
+                                       const linkParts = p.split(/(\/dashboard\/[a-zA-Z0-9\-\/]+)/g);
+                                       return linkParts.map((lp, k) => {
+                                         if (lp.startsWith("/dashboard/")) {
+                                           return (
+                                             <Link 
+                                               key={k} 
+                                               href={lp} 
+                                               className="inline-flex items-center gap-1.5 px-3 py-1 bg-[#6C3AFA]/20 border border-[#6C3AFA]/40 rounded-lg text-[11px] font-bold text-[#A78BFA] hover:bg-[#6C3AFA]/30 transition-colors mx-1 active:scale-95 align-middle"
+                                             >
+                                               Visit Circle <ArrowUpRight className="w-2.5 h-2.5" />
+                                             </Link>
+                                           );
+                                         }
+                                         return lp;
+                                       });
+                                    }
+                                    return p;
+                                  })}
+                                </div>
+                              );
+                           })}
+                         </div>
+                       </div>
+
+                      {/* Special Action UI */}
+                      {msg.role === "assistant" && msg.content.includes("CREATE_CIRCLE_FORM") && (
+                        <div className="mt-4 p-5 rounded-3xl bg-neutral-800/80 border border-white/5 space-y-4 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2 duration-500">
+                          <div className="flex items-center gap-2 mb-2">
+                             <Sparkles className="w-4 h-4 text-purple-400" />
+                             <span className="text-[10px] uppercase font-black tracking-widest text-white/40">Magic Circle Setup</span>
+                          </div>
+                          <div className="grid grid-cols-2 gap-3">
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-white/30 uppercase tracking-tighter">Circle Name</label>
+                              <Input placeholder="Esusu Squad" className="bg-white/5 border-none h-10 rounded-xl" id="form-name" />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-white/30 uppercase tracking-tighter">Amount (₦)</label>
+                              <Input type="number" placeholder="5000" className="bg-white/5 border-none h-10 rounded-xl" id="form-amount" />
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-white/30 uppercase tracking-tighter">Frequency</label>
+                              <select className="flex h-10 w-full rounded-xl border-none bg-white/5 px-3 py-2 text-sm text-white" id="form-frequency">
+                                <option value="weekly" className="bg-neutral-900">Weekly</option>
+                                <option value="monthly" className="bg-neutral-900">Monthly</option>
+                              </select>
+                            </div>
+                            <div className="space-y-1">
+                              <label className="text-[10px] font-bold text-white/30 uppercase tracking-tighter">Max Members</label>
+                              <Input type="number" placeholder="10" className="bg-white/5 border-none h-10 rounded-xl" id="form-max" />
+                            </div>
+                          </div>
+                          <Button 
+                            className="w-full bg-white text-black hover:bg-white/90 font-bold rounded-xl"
+                            onClick={() => {
+                              const nameValue = (document.getElementById('form-name') as HTMLInputElement).value;
+                              const amountValue = (document.getElementById('form-amount') as HTMLInputElement).value;
+                              const freqValue = (document.getElementById('form-frequency') as HTMLSelectElement).value;
+                              const maxValue = (document.getElementById('form-max') as HTMLInputElement).value;
+                              handleSend(`Create a circle named "${nameValue}" with ₦${amountValue} ${freqValue} contribution for up to ${maxValue} people.`);
+                            }}
+                          >
+                            Generate Circle ✨
+                          </Button>
+                        </div>
+                      )}
+
                       <div className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest px-1">
                         {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>

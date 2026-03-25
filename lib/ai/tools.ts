@@ -57,20 +57,7 @@ export const AI_TOOLS = [
       }
     }
   },
-  {
-    type: "function",
-    function: {
-      name: "search_circles",
-      description: "Search for existing savings circles by name to find their IDs.",
-      parameters: {
-        type: "object",
-        properties: {
-          query: { type: "string", description: "The name or part of the name of the circle to search for." }
-        },
-        required: ["query"]
-      }
-    }
-  },
+
   {
     type: "function",
     function: {
@@ -79,7 +66,7 @@ export const AI_TOOLS = [
       parameters: {
         type: "object",
         properties: {
-          circleId: { type: "string", description: "The unique ID of the circle to join. NEVER guess this ID; if unknown, ask the user or search." }
+          circleId: { type: "string", description: "The unique ID of the circle to join. NEVER guess this ID; if unknown, ask the user to provide it." }
         },
         required: ["circleId"]
       }
@@ -103,46 +90,77 @@ export const AI_TOOLS = [
  */
 export async function executeAiAction(toolCall: any, context: { userId?: string, phoneNumber: string }) {
   const { name, arguments: argsString } = toolCall.function;
-  const args = JSON.parse(argsString);
+  
+  let args: any;
+  try {
+    args = JSON.parse(argsString);
+  } catch (e) {
+    return { error: "Invalid arguments format. Please provide valid JSON." };
+  }
 
   console.log(`🤖 AI ACTION TRIGGERED: ${name}`, args);
 
-  switch (name) {
-    case "create_circle":
-      if (!context.userId) return { error: "User not authenticated" };
-      const newCircle = await createCircleCore(context.userId, {
-        name: args.name,
-        description: args.description || "",
-        amount: args.amount,
-        frequency: args.frequency,
-        maxMembers: args.maxMembers
-      });
-      return {
-        ...newCircle,
-        message: `Circle created! View it at /dashboard/circles/${newCircle.slug}`
-      };
+  try {
+    switch (name) {
+      case "create_circle": {
+        if (!context.userId) return { error: "User not authenticated. I need you to sign in first." };
+        
+        const required = ["name", "amount", "frequency", "maxMembers"];
+        const missing = required.filter(field => !args[field]);
+        
+        if (missing.length > 0) {
+          return { 
+            error: `Missing required information: ${missing.join(", ")}.`,
+            instruction: "Please ask the user for these specific details. You can suggest they use the Circle Creation Form."
+          };
+        }
 
-    case "list_my_circles":
-      if (!context.userId) return { error: "User not identified" };
-      return await listUserCirclesCore(context.userId);
+        const newCircle = await createCircleCore(context.userId, {
+          name: args.name,
+          description: args.description || "",
+          amount: args.amount,
+          frequency: args.frequency,
+          maxMembers: args.maxMembers
+        });
+        
+        return {
+          ...newCircle,
+          message: `Circle created! View it at /dashboard/circles/${newCircle.slug}`
+        };
+      }
 
-    case "get_circle_details":
-      return await getCircleDetailsCore(args.circleIdOrSlug);
+      case "list_my_circles":
+        if (!context.userId) return { error: "User not identified. Please register or log in." };
+        return await listUserCirclesCore(context.userId);
 
-    case "search_circles":
-      return await searchCirclesCore(args.query);
+      case "get_circle_details":
+        if (!args.circleIdOrSlug) return { error: "I need a Circle ID or Slug to get details." };
+        return await getCircleDetailsCore(args.circleIdOrSlug);
 
-    case "join_circle":
-      if (!context.userId) return { error: "User not authenticated" };
-      return await joinCircleCore(context.userId, args.circleId);
 
-    case "get_financial_summary":
-      if (!context.userId) return { error: "User not identified" };
-      const contributions = await db.select().from(contributionsTable).where(eq(contributionsTable.memberId, context.userId));
-      const totalSaved = contributions.length > 0 ? contributions.reduce((sum, c) => sum + parseFloat(c.amountPaid), 0) : 0;
-      return { totalSaved, contributionCount: contributions.length };
+      case "join_circle": {
+        if (!context.userId) return { error: "User not authenticated." };
+        if (!args.circleId) return { error: "Circle ID is required to join." };
+        
+        // Check if it's a dummy ID
+        if (args.circleId.includes("id_of") || args.circleId === "123") {
+          return { error: "I don't have the real Circle ID yet. Please ask the user to provide the exact Circle ID from the owner." };
+        }
 
-    default:
-      return { error: "Unknown action" };
+        return await joinCircleCore(context.userId, args.circleId);
+      }
+
+      case "get_financial_summary":
+        if (!context.userId) return { error: "User not identified." };
+        const contributions = await db.select().from(contributionsTable).where(eq(contributionsTable.memberId, context.userId));
+        const totalSaved = contributions.length > 0 ? contributions.reduce((sum, c) => sum + parseFloat(c.amountPaid), 0) : 0;
+        return { totalSaved, contributionCount: contributions.length };
+
+      default:
+        return { error: "Unknown action" };
+    }
+  } catch (error: any) {
+    console.error(`Error executing ${name}:`, error);
+    return { error: `Command failed: ${error.message || "Unknown error"}` };
   }
 }
