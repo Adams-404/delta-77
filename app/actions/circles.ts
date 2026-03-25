@@ -4,7 +4,7 @@ import { circles, circleMembers } from "@/lib/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { eq, and } from "drizzle-orm";
+import { eq, and, ilike, sql } from "drizzle-orm";
 
 // Helper to generate quick random string IDs
 const generateId = () => Math.random().toString(36).substring(2, 11).toUpperCase();
@@ -45,7 +45,108 @@ export async function createCircleCore(userId: string, data: {
     joinedAt: new Date(),
   });
 
-  return { success: true, circleId };
+  return { success: true, circleId, slug };
+}
+
+export async function listUserCirclesCore(userId: string) {
+  const userCircles = await db
+    .select({
+      id: circles.id,
+      name: circles.name,
+      slug: circles.slug,
+      status: circles.status,
+      amount: circles.contributionAmount,
+      frequency: circles.frequency,
+    })
+    .from(circleMembers)
+    .innerJoin(circles, eq(circleMembers.circleId, circles.id))
+    .where(eq(circleMembers.userId, userId));
+
+  return userCircles;
+}
+
+export async function joinCircleCore(userId: string, circleId: string) {
+  // Check if circle exists
+  const [existing] = await db.select().from(circles).where(eq(circles.id, circleId));
+  if (!existing) return { error: "Circle not found. Please provide a valid Circle ID." };
+
+  // Check if already joined
+  const [existingMember] = await db
+    .select()
+    .from(circleMembers)
+    .where(and(eq(circleMembers.circleId, circleId), eq(circleMembers.userId, userId)));
+
+  if (existingMember) {
+    if (existingMember.status === "accepted") {
+      return { success: true, message: "Already a member" };
+    }
+    // Re-apply if previously rejected or pending
+    await db.update(circleMembers)
+      .set({ status: "pending", joinedAt: new Date() })
+      .where(eq(circleMembers.id, existingMember.id));
+    return { success: true, status: "pending" };
+  }
+
+  await db.insert(circleMembers).values({
+    id: generateId(),
+    circleId: circleId,
+    userId: userId,
+    status: "pending",
+    joinedAt: new Date(),
+  });
+
+  return { success: true, status: "pending" };
+}
+
+export async function getCircleDetailsCore(circleIdOrSlug: string) {
+  const [circle] = await db
+    .select()
+    .from(circles)
+    .where(eq(circles.slug, circleIdOrSlug)); // Try slug first
+  
+  let finalCircle = circle;
+  if (!finalCircle) {
+    const [byId] = await db.select().from(circles).where(eq(circles.id, circleIdOrSlug));
+    finalCircle = byId;
+  }
+
+  if (!finalCircle) return { error: "Circle not found" };
+
+  const members = await db
+    .select({
+      id: circleMembers.id,
+      userId: circleMembers.userId,
+      status: circleMembers.status,
+      joinedAt: circleMembers.joinedAt,
+    })
+    .from(circleMembers)
+    .where(eq(circleMembers.circleId, finalCircle.id));
+
+  return {
+    ...finalCircle,
+    members,
+    memberCount: members.length
+  };
+}
+
+export async function searchCirclesCore(query: string) {
+  const results = await db
+    .select({
+      id: circles.id,
+      name: circles.name,
+      slug: circles.slug,
+      amount: circles.contributionAmount,
+      frequency: circles.frequency,
+      status: circles.status,
+      memberCount: sql<number>`count(${circleMembers.id})::int`,
+    })
+    .from(circles)
+    .leftJoin(circleMembers, eq(circles.id, circleMembers.circleId))
+    .where(ilike(circles.name, `%${query}%`))
+    .groupBy(circles.id)
+    .limit(5);
+
+  return results;
 }
 
 // --- Server Actions (Web Interface) ---
