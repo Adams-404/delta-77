@@ -82,15 +82,15 @@ export default function DashboardLayout({
   // Get BVN verification status from fetched user data
   const bvnVerified = userWithBVN?.bvnVerified || false
   
-  // Only redirect if we're not loading and we have confirmed BVN status
-  const isRedirecting = session && !loadingUserData && !bvnVerified && !isKycPage && !isSettingsPage
+  // Only redirect if we're not loading, we have successfully fetched user data, and they are NOT verified
+  const isRedirecting = session && !loadingUserData && userWithBVN && !bvnVerified && !isKycPage && !isSettingsPage
   
   useEffect(() => {
-    // Only redirect if we have session data, BVN is not verified, and we're done loading
-    if (session && !loadingUserData && !bvnVerified && !isKycPage && !isSettingsPage) {
+    // Only redirect if we have session data, BVN is confirmed not verified, and we're done loading
+    if (session && !loadingUserData && userWithBVN && !bvnVerified && !isKycPage && !isSettingsPage) {
       router.push("/dashboard/kyc")
     }
-  }, [session, bvnVerified, isKycPage, isSettingsPage, router, loadingUserData])
+  }, [session, bvnVerified, isKycPage, isSettingsPage, router, loadingUserData, userWithBVN])
 
   if (loadingUserData || isRedirecting) {
     return (
