@@ -16,7 +16,7 @@ export async function POST(req: Request) {
       return NextResponse.json({ error: "Message is required" }, { status: 400 });
     }
 
-    const user = session.user as any;
+    const user = session.user;
     const userId = user.id;
 
     // 1. Save user message to DB
@@ -25,7 +25,7 @@ export async function POST(req: Request) {
         id: crypto.randomUUID(),
         userId: userId,
         role: "user",
-        content: message,
+        content: message as string,
         channel: "web",
       });
     } catch (insertError: any) {
@@ -36,7 +36,7 @@ export async function POST(req: Request) {
     // 2. Process message with AI Agent
     const responseText = await processBotMessage({
       userId: userId,
-      phoneNumber: user.phoneNumber || "",
+      phoneNumber: (user as any).phoneNumber || "",
       message: message,
       channel: "web",
     });
