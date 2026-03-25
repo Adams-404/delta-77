@@ -122,12 +122,12 @@ export default function SettingsPage() {
         </div>
 
         {errorMsg && (
-          <p className="text-red-500 text-sm bg-red-50/50 dark:bg-red-500/10 p-3 rounded-lg border border-red-100 dark:border-red-500/20 font-medium">
+          <p className="text-red-600 dark:text-red-400 text-sm bg-red-500/10 dark:bg-red-500/10 p-3 rounded-lg border border-red-500/20 font-medium">
             {errorMsg}
           </p>
         )}
         {successMsg && (
-          <p className="text-[#00D4AA] text-sm bg-teal-50/50 dark:bg-[#00D4AA]/10 p-3 rounded-lg border border-teal-100 dark:border-[#00D4AA]/20 font-medium">
+          <p className="text-teal-600 dark:text-[#00D4AA] text-sm bg-[#00D4AA]/10 dark:bg-[#00D4AA]/10 p-3 rounded-lg border border-[#00D4AA]/20 font-medium">
             {successMsg}
           </p>
         )}

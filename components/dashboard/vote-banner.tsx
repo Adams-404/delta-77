@@ -2,11 +2,13 @@
 
 import { useState } from "react"
 import { Button } from "@/components/ui/button"
-import { CheckIcon, XIcon, InfoIcon } from "lucide-react"
+import { CheckIcon, XIcon, InfoIcon, AlertCircleIcon } from "lucide-react"
 import { voteUpdateAction } from "@/app/actions/circles"
+import { InlineAlert } from "./inline-alert"
 
 export function VoteBanner({ circle, viewerId }: { circle: any, viewerId: string }) {
   const [loading, setLoading] = useState(false)
+  const [error, setError] = useState<string | null>(null)
 
   const isOrganizer = viewerId === circle.organizerId;
   const approvedBy = circle.approvedBy || [];
@@ -19,20 +21,26 @@ export function VoteBanner({ circle, viewerId }: { circle: any, viewerId: string
 
   const handleVote = async (vote: "approve" | "reject") => {
     setLoading(true)
+    setError(null)
     try {
       const res = await voteUpdateAction(circle.id, vote)
       if (res.success) {
          window.location.reload(); // Quick refresh to sync serverside state triggers
+      } else {
+        setError((res as any).error || "Failed to vote")
       }
     } catch (err: any) {
-      alert(err.message || "Failed to vote")
+      setError(err.message || "Failed to vote")
     } finally {
       setLoading(false)
     }
   }
 
   return (
-    <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4 animate-in fade-in duration-200">
+    <div className="space-y-4 animate-in fade-in duration-200">
+      {error && <InlineAlert type="error" message={error} onClose={() => setError(null)} />}
+      
+    <div className="bg-amber-50 dark:bg-amber-500/10 border border-amber-200/60 dark:border-amber-500/20 rounded-2xl p-4 flex flex-col md:flex-row md:items-center justify-between gap-4">
       <div className="flex gap-3 items-start md:items-center">
         <div className="w-10 h-10 rounded-full bg-amber-100 flex items-center justify-center border border-amber-200 shrink-0">
           <InfoIcon className="w-5 h-5 text-amber-600" />
@@ -77,6 +85,7 @@ export function VoteBanner({ circle, viewerId }: { circle: any, viewerId: string
           <CheckIcon className="w-3.5 h-3.5" /> Vote casted
         </p>
       )}
+    </div>
     </div>
   )
 }
