@@ -3,7 +3,7 @@ import { pgTable, text, timestamp, boolean, integer, decimal, uuid } from "drizz
 // --- Better Auth Tables ---
 
 export const user = pgTable("user", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().notNull(),
   name: text('name').notNull(),
   email: text('email').notNull().unique(),
   emailVerified: boolean('email_verified').notNull(),
@@ -20,7 +20,7 @@ export const user = pgTable("user", {
 });
 
 export const session = pgTable("session", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().notNull(),
   expiresAt: timestamp('expires_at').notNull(),
   token: text('token').notNull().unique(),
   createdAt: timestamp('created_at').notNull(),
@@ -31,12 +31,12 @@ export const session = pgTable("session", {
 });
 
 export const account = pgTable("account", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().notNull(),
   accountId: text('account_id').notNull(),
   providerId: text('provider_id').notNull(),
   userId: text('user_id').notNull().references(() => user.id),
   accessToken: text('access_token'),
-  refreshToken: text('refresh_token'),
+  refreshToken: text('refreshToken'),
   idToken: text('id_token'),
   expiresAt: timestamp('expires_at'),
   password: text('password'),
@@ -45,7 +45,7 @@ export const account = pgTable("account", {
 });
 
 export const verification = pgTable("verification", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().notNull(),
   identifier: text('identifier').notNull(),
   value: text('value').notNull(),
   expiresAt: timestamp('expires_at').notNull(),
@@ -56,7 +56,7 @@ export const verification = pgTable("verification", {
 // --- EsuX Business Logic Tables ---
 
 export const circles = pgTable("circles", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().notNull(),
   name: text("name").notNull(),
   slug: text("slug").unique(),
   description: text("description"),
@@ -75,7 +75,7 @@ export const circles = pgTable("circles", {
 });
 
 export const circleMembers = pgTable("circle_members", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().notNull(),
   circleId: text("circle_id").notNull().references(() => circles.id),
   userId: text("user_id").references(() => user.id), 
   phoneNumber: text("phone_number"), // invite number
@@ -85,7 +85,7 @@ export const circleMembers = pgTable("circle_members", {
 });
 
 export const rounds = pgTable("rounds", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().notNull(),
   circleId: text("circle_id").notNull().references(() => circles.id),
   roundNumber: integer("round_number").notNull(),
   recipientId: text("recipient_id").notNull().references(() => user.id),
@@ -98,7 +98,7 @@ export const rounds = pgTable("rounds", {
 });
 
 export const contributions = pgTable("contributions", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().notNull(),
   roundId: text("round_id").notNull().references(() => rounds.id),
   memberId: text("member_id").notNull().references(() => user.id),
   amountExpected: decimal("amount_expected", { precision: 15, scale: 2 }).notNull(),
@@ -111,7 +111,7 @@ export const contributions = pgTable("contributions", {
 });
 
 export const messages = pgTable("messages", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().notNull(),
   userId: text("user_id").references(() => user.id),
   phoneNumber: text("phone_number"),
   role: text("role").notNull(), // enum: user | assistant
@@ -121,7 +121,7 @@ export const messages = pgTable("messages", {
 });
 
 export const notifications = pgTable("notifications", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().notNull(),
   userId: text("user_id").notNull().references(() => user.id),
   circleId: text("circle_id").references(() => circles.id),
   type: text("type").notNull(), // enum: reminder | payment_received | payout_sent | member_joined | member_declined
@@ -134,7 +134,7 @@ export const notifications = pgTable("notifications", {
  * Audit log for verification attempts (BVN/OTP).
  */
 export const verificationLogs = pgTable("verification_logs", {
-  id: uuid("id").primaryKey().defaultRandom(),
+  id: uuid("id").primaryKey().defaultRandom().notNull(),
   userId: text("user_id").references(() => user.id),
   provider: text("provider").notNull(), // 'interswitch' or 'twilio'
   type: text("type").notNull(), // 'bvn' or 'otp'

@@ -10,6 +10,46 @@ import { eq, and } from "drizzle-orm";
 const generateId = () => Math.random().toString(36).substring(2, 11).toUpperCase();
 const slugify = (str: string) => str.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 
+// --- Core Logic (Independent of Headers) ---
+
+export async function createCircleCore(userId: string, data: {
+  name: string;
+  description: string;
+  amount: string;
+  frequency: string;
+  maxMembers: number;
+}) {
+  const circleId = generateId();
+  const slug = `${slugify(data.name)}-${circleId.toLowerCase()}`;
+
+  await db.insert(circles).values({
+    id: circleId,
+    name: data.name,
+    slug: slug,
+    description: data.description,
+    organizerId: userId,
+    contributionAmount: data.amount,
+    frequency: data.frequency.toLowerCase(),
+    maxMembers: data.maxMembers,
+    status: "pending",
+    currentRound: 1,
+  });
+
+  // Automatically add organizer as a member
+  await db.insert(circleMembers).values({
+    id: generateId(),
+    circleId: circleId,
+    userId: userId,
+    payoutPosition: 1,
+    status: "accepted",
+    joinedAt: new Date(),
+  });
+
+  return { success: true, circleId };
+}
+
+// --- Server Actions (Web Interface) ---
+
 export async function createCircleAction(formData: {
   name: string;
   description: string;
@@ -24,34 +64,10 @@ export async function createCircleAction(formData: {
 
   if (!user) throw new Error("Unauthorized");
 
-  const circleId = generateId();
-  const slug = `${slugify(formData.name)}-${circleId.toLowerCase()}`;
-
-  await db.insert(circles).values({
-    id: circleId,
-    name: formData.name,
-    slug: slug,
-    description: formData.description,
-    organizerId: user.id,
-    contributionAmount: formData.amount,
-    frequency: formData.frequency.toLowerCase(),
-    maxMembers: formData.maxMembers,
-    status: "pending",
-    currentRound: 1,
-  });
-
-  // Automatically add organizer as a member
-  await db.insert(circleMembers).values({
-    id: generateId(),
-    circleId: circleId,
-    userId: user.id,
-    payoutPosition: 1,
-    status: "accepted",
-    joinedAt: new Date(),
-  });
+  const result = await createCircleCore(user.id, formData);
 
   revalidatePath("/dashboard");
-  return { success: true, circleId };
+  return result;
 }
 
 export async function joinCircleAction(circleId: string) {
