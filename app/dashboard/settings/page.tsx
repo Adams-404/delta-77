@@ -5,6 +5,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { authClient } from "@/lib/auth-client"
 import { GlassCard } from "@/components/ui/glass-card"
+import { PasswordInput } from "@/components/ui/password-input"
 
 export default function SettingsPage() {
   const { data: session, isPending } = authClient.useSession()
@@ -134,8 +135,7 @@ export default function SettingsPage() {
         <form onSubmit={handlePasswordUpdate} className="space-y-4 max-w-md">
           <div className="space-y-1">
             <Label className="text-muted-foreground text-xs uppercase tracking-wider font-semibold">Current Password</Label>
-            <Input
-              type="password"
+            <PasswordInput
               placeholder="••••••••"
               value={currentPassword}
               onChange={(e) => setCurrentPassword(e.target.value)}
@@ -146,8 +146,7 @@ export default function SettingsPage() {
 
           <div className="space-y-1">
             <Label className="text-muted-foreground text-xs uppercase tracking-wider font-semibold">New Password</Label>
-            <Input
-              type="password"
+            <PasswordInput
               placeholder="••••••••"
               value={newPassword}
               onChange={(e) => setNewPassword(e.target.value)}
@@ -159,14 +158,24 @@ export default function SettingsPage() {
 
           <div className="space-y-1">
             <Label className="text-muted-foreground text-xs uppercase tracking-wider font-semibold">Confirm New Password</Label>
-            <Input
-              type="password"
+            <PasswordInput
               placeholder="••••••••"
               value={confirmPassword}
               onChange={(e) => setConfirmPassword(e.target.value)}
               className="bg-white/50 dark:bg-white/5 border-neutral-200 dark:border-white/10 text-foreground"
               required
             />
+            {confirmPassword && (
+              newPassword === confirmPassword ? (
+                <p className="text-[#00D4AA] text-xs font-medium mt-1">
+                  Passwords match
+                </p>
+              ) : (
+                <p className="text-red-500 text-xs font-medium mt-1">
+                  Passwords do not match
+                </p>
+              )
+            )}
           </div>
 
           <Button

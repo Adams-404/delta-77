@@ -3,6 +3,7 @@ import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
+import { PasswordInput } from "@/components/ui/password-input"
 import Link from "next/link"
 import { useRouter } from "next/navigation"
 import { authClient } from "@/lib/auth-client"
@@ -13,6 +14,7 @@ export default function RegisterPage() {
   const [email, setEmail] = useState("")
   const [phoneNumber, setPhoneNumber] = useState("")
   const [password, setPassword] = useState("")
+  const [confirmPassword, setConfirmPassword] = useState("")
   const [loading, setLoading] = useState(false)
   const [errorMsg, setErrorMsg] = useState("")
 
@@ -20,6 +22,12 @@ export default function RegisterPage() {
     e.preventDefault()
     setLoading(true)
     setErrorMsg("")
+
+    if (password !== confirmPassword) {
+      setErrorMsg("Passwords do not match")
+      setLoading(false)
+      return
+    }
 
     const { error } = await authClient.signUp.email({ 
       email, 
@@ -91,14 +99,35 @@ export default function RegisterPage() {
 
         <div className="space-y-2">
           <Label className="text-white font-open-sans-custom">Password</Label>
-          <Input 
-            type="password" 
+          <PasswordInput 
             placeholder="••••••••" 
             value={password}
             onChange={(e) => setPassword(e.target.value)}
             className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
             required
           />
+        </div>
+
+        <div className="space-y-2">
+          <Label className="text-white font-open-sans-custom">Confirm Password</Label>
+          <PasswordInput 
+            placeholder="••••••••" 
+            value={confirmPassword}
+            onChange={(e) => setConfirmPassword(e.target.value)}
+            className="bg-white/5 border-white/10 text-white placeholder:text-gray-500"
+            required
+          />
+          {confirmPassword && (
+            password === confirmPassword ? (
+              <p className="text-[#00D4AA] text-xs font-open-sans-custom mt-1">
+                Passwords match
+              </p>
+            ) : (
+              <p className="text-red-400 text-xs font-open-sans-custom mt-1">
+                Passwords do not match
+              </p>
+            )
+          )}
         </div>
 
         <Button 
