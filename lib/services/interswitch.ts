@@ -150,6 +150,7 @@ export class InterswitchService {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
+          'MerchantCode': this.getMerchantCode(),
         },
       });
 
@@ -226,7 +227,10 @@ export class InterswitchService {
 
       const response = await fetch(url, {
         method: 'GET',
-        headers,
+        headers: {
+          ...headers,
+          'MerchantCode': merchantCode,
+        },
       });
 
       const responseText = await response.text();
@@ -243,13 +247,14 @@ export class InterswitchService {
         return { success: false, message: 'Invalid response from transaction service' };
       }
 
-      // ResponseCode '00' = success
-      const isApproved = data.ResponseCode === '00';
+      // ResponseCodes '00', '10', '11' indicate success/approval
+      const isApproved = ['00', '10', '11'].includes(data.ResponseCode);
       return {
         success: isApproved,
         data,
-        message: isApproved ? 'Transaction approved' : `Transaction failed: ${data.ResponseDescription}`,
+        message: isApproved ? 'Transaction approved' : `Transaction failed: ${data.ResponseDescription} (${data.ResponseCode})`,
       };
+
     } catch (error) {
       console.error('[Interswitch] verifyTransaction error:', error);
       return { success: false, message: error instanceof Error ? error.message : 'Internal transaction verification error' };
