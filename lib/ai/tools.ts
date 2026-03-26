@@ -5,12 +5,14 @@ import {
   searchCirclesCore,
   joinCircleCore
 } from "@/app/actions/circles";
-import { db } from "@/lib/db";
+import { db } from "@/lib/db/client";
 import {
   contributions as contributionsTable,
-  user as userTable
+  user as userTable,
+  circles as circlesTable,
+  rounds as roundsTable
 } from "@/lib/db/schema";
-import { eq, or } from "drizzle-orm";
+import { eq, or, and, desc } from "drizzle-orm";
 
 /**
  * Definition of tools the AI Agent can use.
@@ -85,6 +87,20 @@ export const AI_TOOLS = [
         properties: {}
       }
     }
+  },
+  {
+    type: "function",
+    function: {
+      name: "check_contribution_status",
+      description: "Check if the user has already made a contribution for the current active round of a specific circle. Returns status and payment details if found.",
+      parameters: {
+        type: "object",
+        properties: {
+          circleIdOrSlug: { type: "string", description: "The ID or Slug of the circle to check." }
+        },
+        required: ["circleIdOrSlug"]
+      }
+    }
   }
 ];
 
@@ -128,12 +144,16 @@ export async function executeAiAction(toolCall: any, context: { userId?: string,
         if (!effectiveUserId) return { error: regMessage };
 
         const required = ["name", "amount", "frequency", "maxMembers"];
-        const missing = required.filter(field => !args[field]);
+        const missing = [];
+        if (!args.name || args.name.trim() === "") missing.push("name");
+        if (!args.amount || parseFloat(args.amount) <= 0) missing.push("amount (must be > 0)");
+        if (!args.frequency) missing.push("frequency");
+        if (!args.maxMembers || args.maxMembers <= 0) missing.push("maxMembers (must be at least 1)");
 
         if (missing.length > 0) {
           return {
-            error: `Missing required information: ${missing.join(", ")}.`,
-            instruction: "Please ask the user for these specific details. You can suggest they use the Circle Creation Form."
+            error: `Missing or invalid information: ${missing.join(", ")}.`,
+            instruction: "Please ask the user for these specific details. Do not call this tool with empty or zero values."
           };
         }
 
@@ -177,6 +197,93 @@ export async function executeAiAction(toolCall: any, context: { userId?: string,
         const contributions = await db.select().from(contributionsTable).where(eq(contributionsTable.memberId, effectiveUserId));
         const totalSaved = contributions.length > 0 ? contributions.reduce((sum, c) => sum + parseFloat(c.amountPaid), 0) : 0;
         return { totalSaved, contributionCount: contributions.length };
+
+      case "check_contribution_status": {
+        if (!effectiveUserId) return { error: regMessage };
+        if (!args.circleIdOrSlug) return { error: "I need a circle ID to check status." };
+
+        // 1. Find Circle
+        let circle: any;
+        const [bySlug] = await db.select().from(circlesTable).where(eq(circlesTable.slug, args.circleIdOrSlug));
+        circle = bySlug;
+        if (!circle) {
+          const [byId] = await db.select().from(circlesTable).where(eq(circlesTable.id, args.circleIdOrSlug));
+          circle = byId;
+        }
+        if (!circle) return { error: "Circle not found." };
+
+        // 2. Find Current Round
+        const ongoingRounds = await db
+          .select()
+          .from(roundsTable)
+          .where(
+            and(
+              eq(roundsTable.circleId, circle.id),
+              eq(roundsTable.status, "ongoing")
+            )
+          );
+        
+        let currentRound = ongoingRounds[0];
+
+        if (!currentRound) {
+          // Check if ANY rounds exist to see what round number we should be on
+          const allRounds = await db
+            .select()
+            .from(roundsTable)
+            .where(eq(roundsTable.circleId, circle.id))
+            .orderBy(desc(roundsTable.roundNumber));
+          
+          if (allRounds.length === 0) {
+            // No rounds yet, so we're starting Round 1
+            return {
+              circleName: circle.name,
+              circleSlug: circle.slug,
+              circleId: circle.id,
+              amount: circle.contributionAmount,
+              roundNumber: 1,
+              hasPaid: false,
+              status: "ready_to_start",
+              message: "The first round hasn't technically started yet, but you can kick it off with your first contribution!"
+            };
+          } else {
+            // Previous rounds exist, we are transitioning to the next one
+            const nextRoundNum = allRounds[0].roundNumber + 1;
+            return {
+              circleName: circle.name,
+              circleSlug: circle.slug,
+              circleId: circle.id,
+              amount: circle.contributionAmount,
+              roundNumber: nextRoundNum,
+              hasPaid: false,
+              status: "between_rounds",
+              message: `Round #${allRounds[0].roundNumber} is finished. You can contribute now to start Round #${nextRoundNum}!`
+            };
+          }
+        }
+
+        // 3. Find Contribution
+        const [contribution] = await db
+          .select()
+          .from(contributionsTable)
+          .where(
+            and(
+              eq(contributionsTable.roundId, currentRound.id),
+              eq(contributionsTable.memberId, effectiveUserId),
+              eq(contributionsTable.paymentVerified, true)
+            )
+          );
+
+        return {
+          circleName: circle.name,
+          circleSlug: circle.slug,
+          circleId: circle.id,
+          amount: circle.contributionAmount,
+          roundNumber: currentRound.roundNumber,
+          hasPaid: !!contribution,
+          contributionId: contribution?.id || null,
+          paidAt: contribution?.paidAt || null,
+        };
+      }
 
       default:
         return { error: "Unknown action" };

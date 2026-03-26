@@ -1,6 +1,6 @@
 "use client"
 import { useState, useRef, useEffect } from "react"
-import { SendIcon, BotIcon, Sparkles, History, ArrowUpRight, Loader2, User, Info, Plus } from "lucide-react"
+import { SendIcon, BotIcon, Sparkles, History, ArrowUpRight, Loader2, User, Info, Plus, CreditCardIcon } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -271,7 +271,7 @@ export default function ChatPage() {
                          </div>
                        </div>
 
-                      {/* Special Action UI */}
+                      {/* Special Action UI: Create Circle Form */}
                       {msg.role === "assistant" && msg.content.includes("CREATE_CIRCLE_FORM") && (
                         <div className="mt-4 p-5 rounded-3xl bg-neutral-800/80 border border-white/5 space-y-4 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2 duration-500">
                           <div className="flex items-center gap-2 mb-2">
@@ -306,11 +306,80 @@ export default function ChatPage() {
                               const amountValue = (document.getElementById('form-amount') as HTMLInputElement).value;
                               const freqValue = (document.getElementById('form-frequency') as HTMLSelectElement).value;
                               const maxValue = (document.getElementById('form-max') as HTMLInputElement).value;
+                              
+                              if (!nameValue || !amountValue || !maxValue) {
+                                toast.error("Please fill in all the details first!");
+                                return;
+                              }
+                              
+                              if (parseInt(maxValue) < 1) {
+                                toast.error("Max members must be at least 1.");
+                                return;
+                              }
+
                               handleSend(`Create a circle named "${nameValue}" with ₦${amountValue} ${freqValue} contribution for up to ${maxValue} people.`);
                             }}
                           >
                             Generate Circle ✨
                           </Button>
+                        </div>
+                      )}
+
+                      {/* Special Action UI: Contribution Controls */}
+                      {msg.role === "assistant" && msg.content.includes("CONTRIBUTION_CONTROLS") && (
+                        <div className="mt-4 p-5 rounded-3xl bg-neutral-800/80 border border-white/5 space-y-4 shadow-2xl backdrop-blur-xl animate-in fade-in slide-in-from-bottom-2 duration-500">
+                          <div className="flex items-center gap-2 mb-2">
+                             <CreditCardIcon className="w-4 h-4 text-emerald-400" />
+                             <span className="text-[10px] uppercase font-black tracking-widest text-white/40">Contribution Hub</span>
+                          </div>
+                          
+                          {(() => {
+                             const actionTag = msg.content.match(/\[ACTION: CONTRIBUTION_CONTROLS: (.*?)\]/)?.[1] || "";
+                             const params = Object.fromEntries(actionTag.split('; ').map(p => p.split('=')));
+                             const hasPaid = params.hasPaid === 'true';
+
+                             return (
+                               <div className="space-y-4">
+                                  <div className="flex items-center justify-between p-3 rounded-2xl bg-white/5 border border-white/5">
+                                    <div className="space-y-0.5">
+                                      <p className="text-[10px] font-bold text-white/40 uppercase tracking-tighter">Current Status</p>
+                                      <p className={cn("text-sm font-black", hasPaid ? "text-emerald-400" : "text-amber-400")}>
+                                        {hasPaid ? "✓ PAID & VERIFIED" : "! PAYMENT DUE"}
+                                      </p>
+                                    </div>
+                                    <div className="text-right">
+                                      <p className="text-[10px] font-bold text-white/40 uppercase tracking-tighter">Amount</p>
+                                      <p className="text-sm font-black text-white">₦{params.amount || "---"}</p>
+                                    </div>
+                                  </div>
+
+                                  <div className="flex flex-col gap-2">
+                                    {hasPaid ? (
+                                      <Link href={`/dashboard/receipt/${params.contributionId}`} className="w-full">
+                                        <Button className="w-full bg-white/10 hover:bg-white/20 text-white font-bold rounded-xl border border-white/10">
+                                          View Official Receipt 📄
+                                        </Button>
+                                      </Link>
+                                    ) : (
+                                      <>
+                                        <Link href={`/dashboard/circles/${params.slug}/payment`} className="w-full">
+                                          <Button className="w-full bg-[#6C3AFA] hover:bg-[#5B30D9] text-white font-bold rounded-xl shadow-lg shadow-purple-500/20">
+                                            Make Contribution Now ₦
+                                          </Button>
+                                        </Link>
+                                        <Button 
+                                          variant="outline" 
+                                          className="w-full border-white/10 text-white/60 hover:text-white rounded-xl hover:bg-white/5"
+                                          onClick={() => handleSend(`Verify my payment for the circle ${params.slug}`)}
+                                        >
+                                          Verify My Payment ⚡
+                                        </Button>
+                                      </>
+                                    )}
+                                  </div>
+                               </div>
+                             );
+                          })()}
                         </div>
                       )}
 
