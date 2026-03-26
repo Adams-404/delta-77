@@ -23,7 +23,7 @@ export class InterswitchService {
   private tokenExpiry: number | null = null;
   private merchantCode: string | null = null;
 
-  private constructor() {}
+  private constructor() { }
 
   public static getInstance(): InterswitchService {
     if (!InterswitchService.instance) {
@@ -273,20 +273,26 @@ export class InterswitchService {
     const payItemId = this.getPayItemId();
     const isQA = this.baseUrl.includes('qa');
 
-    return {
+    const config = {
       merchant_code: merchantCode,
       pay_item_id: payItemId,
       txn_ref: params.transactionRef,
       site_redirect_url: params.redirectUrl,
-      amount: params.amountInKobo,
+      amount: params.amountInKobo.toString(),
       currency: 566, // NGN
       mode: isQA ? 'TEST' : 'LIVE',
       customer_email: params.customerEmail,
-      // Checkout script URL
+      // Restore the QA script since we've fixed the COOP/COEP headers that were blocking it.
+      // QA scripts are necessary for QA-only merchants like MX276325.
       checkoutScript: isQA
         ? 'https://newwebpay.qa.interswitchng.com/inline-checkout.js'
         : 'https://newwebpay.interswitchng.com/inline-checkout.js',
+
     };
+
+    console.log('[Interswitch] Building checkout params:', JSON.stringify(config, null, 2));
+    return config;
+
   }
 
   /**

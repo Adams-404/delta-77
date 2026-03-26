@@ -2,8 +2,8 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { db } from "@/lib/db/client"
-import { contributions, rounds } from "@/lib/db/schema"
-import { eq } from "drizzle-orm"
+import { contributions, rounds, circles } from "@/lib/db/schema"
+import { eq, desc } from "drizzle-orm"
 import { interswitch } from "@/lib/services/interswitch"
 
 export async function POST(req: Request) {
@@ -31,13 +31,43 @@ export async function POST(req: Request) {
     const transactionRef = `ESUX_${Date.now()}_${Math.random().toString(36).substring(2, 8).toUpperCase()}`
 
     // Find active round for this circle
-    const activeRound = await db.query.rounds.findFirst({
+    let activeRound = await db.query.rounds.findFirst({
       where: eq(rounds.circleId, circleId),
-      // TODO: Add status filter: eq(rounds.status, 'ongoing')
+      // order by round number to get the current one
+      orderBy: (rounds, { desc }) => [desc(rounds.roundNumber)],
     })
 
+    // If no round exists, create the first one automatically
     if (!activeRound) {
-      return NextResponse.json({ message: "No active round found for this circle" }, { status: 404 })
+      console.log(`[Payment] No round found for circle ${circleId}. Creating Round 1...`);
+      
+      const circleCount = await db.query.circles.findFirst({
+        where: eq(circles.id, circleId),
+      });
+
+      if (!circleCount) {
+        return NextResponse.json({ message: "Circle not found" }, { status: 404 });
+      }
+
+      const roundId = crypto.randomUUID();
+      await db.insert(rounds).values({
+        id: roundId,
+        circleId: circleId,
+        roundNumber: 1,
+        totalExpected: (parseFloat(circleCount.contributionAmount) * circleCount.maxMembers).toString(),
+        totalCollected: "0",
+        status: "ongoing",
+        startsAt: new Date(),
+      });
+
+      // Fetch the newly created round
+      activeRound = await db.query.rounds.findFirst({
+        where: eq(rounds.id, roundId),
+      });
+    }
+
+    if (!activeRound) {
+      return NextResponse.json({ message: "Failed to create or find an active round for this circle" }, { status: 500 })
     }
 
     // Create a pending contribution record

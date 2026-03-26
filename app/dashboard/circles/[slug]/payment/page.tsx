@@ -52,17 +52,65 @@ export default function CirclePaymentPage() {
         throw new Error(data.message || "Payment initialization failed")
       }
 
-      // --- Mock Interswitch Quickteller Redirect ---
-      // In a real implementation: window.location.href = data.redirectUrl
+      // Load Interswitch Script dynamically
+      const script = document.createElement('script');
+      script.src = data.checkout.checkoutScript;
+      script.onload = () => {
+        // @ts-ignore
+        if (typeof window.webpayCheckout === 'function') {
+          // Callback after Interswitch finishes
+          const onComplete = (response: any) => {
+            console.log("Interswitch response:", response);
+            // Verify payment on server
+            handleVerification(data.transactionRef);
+          };
 
-      setSuccess(true)
-      setTimeout(() => {
-        router.push(`/dashboard/circles/${slug}`)
-      }, 3000)
+          const checkoutParams = {
+            ...data.checkout,
+            onComplete: onComplete
+          };
+          
+          // @ts-ignore
+          window.webpayCheckout(checkoutParams);
+        } else {
+          setError("Interswitch payment script failed to initialize.");
+          setLoading(false);
+        }
+      };
+      script.onerror = () => {
+        setError("Failed to load Interswitch payment script.");
+        setLoading(false);
+      };
+      document.body.appendChild(script);
+
     } catch (err: any) {
       setError(err.message)
-    } finally {
       setLoading(false)
+    }
+  }
+
+  const handleVerification = async (transactionRef: string) => {
+    setLoading(true);
+    try {
+      const res = await fetch("/api/contributions/verify", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ transactionRef }),
+      });
+
+      const data = await res.json();
+      if (res.ok && data.success) {
+        setSuccess(true);
+        setTimeout(() => {
+          router.push(`/dashboard/circles/${slug}`);
+        }, 3000);
+      } else {
+        setError(data.message || "Payment verification failed. Please contact support.");
+      }
+    } catch (err) {
+      setError("An error occurred during verification. Please check your history.");
+    } finally {
+      setLoading(false);
     }
   }
 
