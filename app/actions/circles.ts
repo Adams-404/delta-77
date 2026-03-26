@@ -258,7 +258,19 @@ export async function approveMemberAction(memberId: string, status: "accepted" |
 
   await db.update(circleMembers).set({ status }).where(eq(circleMembers.id, memberId));
 
+  // If this member was accepted, check if the circle is now full to activate it
+  if (status === "accepted") {
+    const members = await db.select().from(circleMembers).where(and(eq(circleMembers.circleId, circle.id), eq(circleMembers.status, "accepted")));
+    if (members.length >= circle.maxMembers && circle.status === "pending") {
+      await db.update(circles).set({ 
+        status: "active",
+        startDate: new Date()
+      }).where(eq(circles.id, circle.id));
+    }
+  }
+
   revalidatePath(`/dashboard/circles/${circle.slug || circle.id}`);
+  revalidatePath("/dashboard/circles");
   return { success: true };
 }
 

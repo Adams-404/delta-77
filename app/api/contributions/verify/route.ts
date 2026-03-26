@@ -1,9 +1,10 @@
 import { NextResponse } from "next/server"
+import { revalidatePath } from "next/cache"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { db } from "@/lib/db/client"
 import { contributions, rounds, circles } from "@/lib/db/schema"
-import { eq, sql } from "drizzle-orm"
+import { eq, sql, and } from "drizzle-orm"
 import { interswitch } from "@/lib/services/interswitch"
 
 export async function POST(req: Request) {
@@ -64,24 +65,29 @@ export async function POST(req: Request) {
       })
       .where(eq(rounds.id, contribution.roundId))
 
-    // Fetch the circle to check status
-    const activeRound = await db.query.rounds.findFirst({
-        where: eq(rounds.id, contribution.roundId),
-        with: {
-            circle: true
-        }
-    })
+    // Direct Force Update: Find the circle related to this round and set it to active
+    const updateResult = await db.update(circles)
+        .set({ 
+            status: 'active',
+            startDate: new Date()
+        })
+        .where(and(
+            eq(circles.id, sql`(SELECT circle_id FROM ${rounds} WHERE id = ${contribution.roundId})`),
+            sql`${circles.status} != 'active'`
+        ))
+        .returning({ id: circles.id, slug: circles.slug })
 
-    // If circle is pending, move it to 'active' now that money is coming in
-    if (activeRound?.circle?.status === 'pending') {
-        await db.update(circles)
-            .set({ 
-                status: 'active',
-                startDate: new Date()
-            })
-            .where(eq(circles.id, activeRound.circle.id))
-        console.log(`[Verify] Circle ${activeRound.circle.id} is now ACTIVE.`)
+    if (updateResult.length > 0) {
+        console.log(`[Verify] SUCCESS: Circle ${updateResult[0].id} is now ACTIVE.`)
+        revalidatePath(`/dashboard/circles/${updateResult[0].slug}`)
+    } else {
+        console.log(`[Verify] Circle status update skipped: already active or round not found.`)
+        // Fallback revalidation if slug is known from elsewhere or just global
+        revalidatePath("/dashboard/circles") 
     }
+
+    revalidatePath("/dashboard")
+    revalidatePath("/dashboard/contributions")
 
     return NextResponse.json({
       success: true,
