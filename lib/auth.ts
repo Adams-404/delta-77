@@ -10,6 +10,7 @@ export const auth = betterAuth({
             ...schema
         }
     }),
+    baseURL: process.env.BETTER_AUTH_URL || `https://${process.env.VERCEL_URL}` || "http://localhost:3000",
     user: {
         additionalFields: {
             phoneNumber: {
