@@ -41,12 +41,10 @@ export async function processBotMessage(params: {
 }) {
   const { userId, phoneNumber, message, channel } = params;
 
-  // 1. Fetch user data if we have a userId
+  // 1. Fetch user data
   let contextData = null;
   try {
-    if (userId) {
-      contextData = await getUserContext(userId);
-    }
+    contextData = await getUserContext(userId, phoneNumber);
   } catch (ctxError) {
     console.error("Context Fetch Error:", ctxError);
   }
@@ -74,9 +72,25 @@ export async function processBotMessage(params: {
     console.error("History Fetch Error:", histError);
   }
 
+  // Formatting instructions for different channels
+  const formattingInstructions = channel === "whatsapp" 
+    ? `**WhatsApp Formatting:**
+- Use *bold* for emphasis (Naira amounts, Names, IDs).
+- Use _italics_ for secondary info.
+- Use lists with bullet points but KEEP THEM FLAT (no deep indents).
+- DO NOT use Markdown links like [Text](Url). WhatsApp doesn't support them.
+- Put important URLs on their own line.
+- Use emojis naturally to keep it friendly.`
+    : `**Web Formatting:**
+- ALWAYS use standard Markdown.
+- Use **bold text** for important values.
+- Use bullet points for lists.
+- For links, ALWAYS use the slug (e.g., /dashboard/circles/slug).`;
+
   // 3. Construct System Prompt with Context
   const dynamicSystemPrompt = SYSTEM_PROMPT
-    .replace("[USER_CONTEXT]", JSON.stringify(contextData || "No active circles or history found. User might be new."));
+    .replace("[USER_CONTEXT]", JSON.stringify(contextData || "No active circles found. User might be new."))
+    .replace("**Formatting Guidelines:**", formattingInstructions);
 
   // 4. Initial request to Groq with Tools
   try {
