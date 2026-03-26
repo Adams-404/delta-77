@@ -2,11 +2,10 @@ import { db } from "@/lib/db/client"
 import { contributions, rounds, circles, user as userTable } from "@/lib/db/schema"
 import { eq } from "drizzle-orm"
 import { notFound } from "next/navigation"
-import { CheckCircle2Icon, ShieldCheckIcon, PrinterIcon, ArrowLeftIcon } from "lucide-react"
-import { Button } from "@/components/ui/button"
-import Link from "next/link"
+import { CheckCircle2Icon, ShieldCheckIcon } from "lucide-react"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
+import { ReceiptActions } from "@/components/dashboard/receipt-actions"
 
 export default async function ReceiptPage(props: { params: Promise<{ id: string }> }) {
   const { id } = await props.params
@@ -36,16 +35,7 @@ export default async function ReceiptPage(props: { params: Promise<{ id: string 
     <div className="min-h-screen bg-slate-50 dark:bg-black p-4 py-12 md:p-12 print:bg-white print:p-0">
       <div className="max-w-3xl mx-auto space-y-8">
         {/* Navigation - Hidden on Print */}
-        <div className="flex justify-between items-center print:hidden">
-          <Link href="/dashboard/contributions">
-            <Button variant="ghost" className="gap-2 text-muted-foreground hover:text-foreground">
-              <ArrowLeftIcon className="w-4 h-4" /> Back to History
-            </Button>
-          </Link>
-          <Button onClick={() => window.print()} className="bg-[#6C3AFA] hover:bg-[#5B30D9] text-white">
-            <PrinterIcon className="w-4 h-4 mr-2" /> Print Receipt
-          </Button>
-        </div>
+        <ReceiptActions />
 
         {/* Receipt Container */}
         <div className="bg-white dark:bg-zinc-950 border border-neutral-200 dark:border-white/10 rounded-2xl shadow-xl overflow-hidden print:border-0 print:shadow-none print:rounded-none">

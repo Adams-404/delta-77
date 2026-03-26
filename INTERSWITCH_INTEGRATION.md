@@ -1,65 +1,36 @@
-# 🤖 TO THE NEXT AI ASSISTANT: Interswitch Integration Context of EsuX
+# 🚀 Next Steps for Interswitch Integration (Post-Approval)
 
-> [!IMPORTANT]
-> **READ THIS COMPLETELY BEFORE WORKING ON INTERSWITCH.** This file contains the handover notes, learned behaviors, URL endpoints mismatch resolutions, and instructions on unlocking the direct Identity node routing.
-
----
-
-## 🔗 1. Official API Reference docs
-Keep this documentation link handy to pull specs for data payouts endpoints & payloads structures:
-- **Documentation Center**: `https://docs.interswitchgroup.com/docs/home`
+> [!NOTE]
+> The foundational integration is complete. Auth handshake, payment initiation, checkout widget loading (fixed from "refused to connect"), and transaction verification are all fully operational in the **QA environment**.
 
 ---
 
-## 🟢 2. State of What is Configured
-
-### **A. Auth Handshake resolved via QA node**
-- Credentials are valid for the **QA Node** (`https://qa.interswitchng.com`), NOT default sandbox nodes.
-- `.env` holds `ISW_CLIENT_ID` and `ISW_CLIENT_SECRET`. 
-- `getAccessToken()` fetcher Singleton successfully pulls **`200 OK — Bearer access_token`** auth from QA passport route `/passport/oauth/token` now natively.
-
-### **B. Service helper code & Singleton**
-- File: `/lib/services/interswitch.ts` contains the configured service Singleton that manages Token Caching in-memory natively.
-- Fixed: Drizzle query `rounds` types error directly within `lib/db/client.ts` to solve compiler issues ahead.
-- Replace: Endpoint paths mapping within route calls verify standard parameters natively successfully.
+## ⏳ **Current Blocker: Dashboard Review State**
+The user's business account is currently **`Pending Review approval`** on the Interswitch onboarding console. While the payment flow is working for testing, other endpoints like **BVN/Identity** currently return **`404 Not Found`** because the merchant profile hasn't been fully loaded into those gateway tables yet.
 
 ---
 
-## ⏳ 3. Known Blocker: Dashboard Review State
+## 🚀 **Remaining Tasks (Once Business Profile is Approved)**
 
-While auth successfully returns token authorizations, hitting BVN/Identity API node endpoints currently returns **`404 Not Found`**.
+### **Step 1: Unblock Identity Endpoints (BVN)**
+As soon as the review is cleared:
+- **Action**: Test the `verifyBVN()` endpoint again. It should now start returning real name verification data instead of the sandbox mock.
+- **Requirement**: No code changes needed, as we've already added the `MerchantCode` header and correctly configured the `Bearer` token handshake.
 
-**Wait Status:** The user created an **Individual Business** profile on the Interswitch onboarding dashboard console just now. Dashboard state is **`Pending Review approval`** so the application profile profile is not loaded on gateway tables fully.
+### **Step 2: Implement Payouts / Disbursements**
+Once payments are being collected, the application will need to disburse funds to members of the circle.
+- **Documentation**: Refer to [Interswitch Transfers / Payouts](https://docs.interswitchgroup.com/docs/home).
+- **Task**: Create a new service method in `lib/services/interswitch.ts` to handle `POST /payments/transfer`.
+- **Requirements**: This will require separate approval from Interswitch for "Transfer" permissions on your merchant dashboard.
+
+### **Step 3: Transition to Production (Go Live)**
+When you're ready to collect real money from real cards:
+1. **Update `.env`**:
+   - Change `ISW_BASE_URL` to the Production URL: `https://api.interswitchng.com`.
+   - Update `ISW_CLIENT_ID` and `ISW_CLIENT_SECRET` with your Live production credentials.
+   - Ensure `ISW_MERCHANT_CODE` is set to your production code.
+2. **Switch Mode**: 
+   - The code is already dynamic; once you change `ISW_BASE_URL` to a non-QA domain, the system will automatically switch from `mode: "TEST"` to `mode: "LIVE"`.
 
 ---
-
-## 🚀 4. INSTRUCTIONS: How to Unblock endpoints once approved
-
-As soon as the user says **"My Business profile review cleared on dashboard"**, follow these direct fix-routing checklist:
-
-### **Step 1: Retrieve the Missing Router Header**
-The Interswitch API gateway evaluates authorization using full profile links. You strictly need a **MerchantCode** header.
-- **Instruct User**: Ask them to look up **Merchant Code** or **Aggregator ID** inside their newly approved dashboard.
-
-### **Step 2: Update `.env` setup variables**
-Add the discovered code to `.env` variables list:
-```env
-ISW_MERCHANT_CODE="MX12345" # Example ID provided by user
-```
-
-### **Step 3: Update `lib/services/interswitch.ts`**
-Append the header lookup inside both `verifyBVN()` and `verifyTransaction()` dispatching calls:
-```typescript
-const response = await fetch(`${baseUrl}/api/v1/identity/bvn`, { // Note: use /identity/bvn path or check docs
-  method: 'POST',
-  headers: {
-    'Authorization': `Bearer ${token}`,
-    'Accept': 'application/json',
-    'Content-Type': 'application/json',
-    'MerchantCode': process.env.ISW_MERCHANT_CODE || '' // Adds appropriate routing
-  },
-  body: JSON.stringify({ bvn })
-});
-```
-
-Verify if `response.status === 200` to parse out names safely, and continue implementing payouts endpoints according to official docs!
+*Created for EsuX Delta-77 Integration*

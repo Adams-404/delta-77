@@ -1,6 +1,6 @@
 import { Button } from "@/components/ui/button"
 import { db } from "@/lib/db/client"
-import { circles, circleMembers, user as userTable } from "@/lib/db/schema"
+import { circles, circleMembers, user as userTable, rounds as roundsTable, contributions as contributionsTable } from "@/lib/db/schema"
 import { eq, and } from "drizzle-orm"
 import { 
   ArrowLeftIcon, 
@@ -49,6 +49,23 @@ export default async function CircleDetailPage(props: { params: Promise<{ slug: 
     .select()
     .from(circleMembers)
     .where(and(eq(circleMembers.circleId, circle.id), eq(circleMembers.userId, viewer?.id || "not-found")));
+
+  // 3. Fetch recent contributions for this circle
+  const circleRoundIds = await db.select({ id: roundsTable.id }).from(roundsTable).where(eq(roundsTable.circleId, circle.id));
+  const ids = circleRoundIds.map(r => r.id);
+
+  const recentContributions = ids.length > 0 ? await db.query.contributions.findMany({
+    where: (contributions, { and, eq, inArray }) => and(
+        eq(contributions.paymentVerified, true),
+        inArray(contributions.roundId, ids)
+    ),
+    orderBy: (contributions, { desc }) => [desc(contributions.paidAt)],
+    limit: 5,
+    with: {
+        member: true,
+        round: true
+    }
+  }) : [];
 
   // If pending and not organizer, show holding screen
   if (currentMember?.status === "pending" && viewer?.id !== circle.organizerId) {
@@ -216,10 +233,40 @@ export default async function CircleDetailPage(props: { params: Promise<{ slug: 
         </div>
 
         <div className="space-y-4">
-            {/* Logic to be integrated: Fetch recent contributions for this circle */}
-            {/* For now, showing a stylish placeholder with the schema-aware concept */}
-            <div className="space-y-4">
-                {members.filter(m => m.status === 'accepted').slice(0, 3).map((m, i) => (
+            {/* Real contributions for this circle */}
+            {recentContributions && recentContributions.length > 0 ? (
+                <div className="space-y-4">
+                    {recentContributions.map((log) => (
+                        <div key={log.id} className="flex items-center gap-4 group">
+                            <div className="w-10 h-10 rounded-full bg-[#6C3AFA]/10 flex items-center justify-center border border-[#6C3AFA]/20 group-hover:bg-[#6C3AFA]/20 transition-colors">
+                                <CreditCardIcon className="w-5 h-5 text-[#6C3AFA]" />
+                            </div>
+                            <div className="flex-1">
+                                <p className="text-sm font-medium text-foreground">
+                                    <span className="font-bold">{log.member?.name || 'Member'}</span> made a contribution
+                                </p>
+                                <p className="text-xs text-muted-foreground">Successfully verified payment for Round #{log.round?.roundNumber}</p>
+                            </div>
+                            <div className="text-right">
+                                <p className="text-sm font-bold text-[#00D4AA]">
+                                    +₦{parseFloat(log.amountPaid).toLocaleString()}
+                                </p>
+                                <span className="text-[10px] text-muted-foreground font-mono">
+                                    {log.paidAt ? new Date(log.paidAt).toLocaleDateString() : 'Just now'}
+                                </span>
+                            </div>
+                        </div>
+                    ))}
+                </div>
+            ) : (
+                <div className="text-center py-8">
+                    <p className="text-muted-foreground text-sm">No payment activity recorded yet.</p>
+                </div>
+            )}
+            
+            {/* Circle Member Join Activity */}
+            <div className="pt-4 border-t border-neutral-100 dark:border-white/10 space-y-4">
+                {members.filter(m => m.status === 'accepted').slice(0, 3).map((m) => (
                     <div key={m.id} className="flex items-center gap-4 group">
                         <div className="w-10 h-10 rounded-full bg-[#00D4AA]/10 flex items-center justify-center border border-[#00D4AA]/20 group-hover:bg-[#00D4AA]/20 transition-colors">
                             <PlusCircleIcon className="w-5 h-5 text-[#00D4AA]" />
@@ -228,28 +275,17 @@ export default async function CircleDetailPage(props: { params: Promise<{ slug: 
                             <p className="text-sm font-medium text-foreground">
                                 <span className="font-bold">{m.name}</span> joined the circle
                             </p>
-                            <p className="text-xs text-muted-foreground">Successfully onboarded as a member</p>
+                            <p className="text-xs text-muted-foreground">Onboarded as an active member</p>
                         </div>
-                        <span className="text-[10px] text-muted-foreground font-mono">{m.joinedAt ? new Date(m.joinedAt).toLocaleDateString() : "Just now"}</span>
+                        <span className="text-[10px] text-muted-foreground font-mono">
+                            {m.joinedAt ? new Date(m.joinedAt).toLocaleDateString() : "Recently"}
+                        </span>
                     </div>
                 ))}
-                
-                {/* Mocked contribution activities to show variety */}
-                <div className="flex items-center gap-4 group">
-                    <div className="w-10 h-10 rounded-full bg-[#6C3AFA]/10 flex items-center justify-center border border-[#6C3AFA]/20 group-hover:bg-[#6C3AFA]/20 transition-colors">
-                        <CreditCardIcon className="w-5 h-5 text-[#6C3AFA]" />
-                    </div>
-                    <div className="flex-1">
-                        <p className="text-sm font-medium text-foreground">
-                            Cycle Round <span className="font-bold">#1</span> Started
-                        </p>
-                        <p className="text-xs text-muted-foreground">Contributions are now being collected</p>
-                    </div>
-                    <span className="text-[10px] text-muted-foreground font-mono">2 days ago</span>
-                </div>
             </div>
         </div>
       </GlassCard>
+
 
       {/* Guide Panel */}
       <GlassCard className="p-6 flex gap-4 max-w-4xl bg-blue-500/5 border-blue-500/10">

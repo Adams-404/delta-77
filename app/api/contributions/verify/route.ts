@@ -2,8 +2,8 @@ import { NextResponse } from "next/server"
 import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { db } from "@/lib/db/client"
-import { contributions } from "@/lib/db/schema"
-import { eq } from "drizzle-orm"
+import { contributions, rounds, circles } from "@/lib/db/schema"
+import { eq, sql } from "drizzle-orm"
 import { interswitch } from "@/lib/services/interswitch"
 
 export async function POST(req: Request) {
@@ -56,6 +56,32 @@ export async function POST(req: Request) {
         paidAt: new Date(),
       })
       .where(eq(contributions.id, contribution.id))
+
+    // Update the 'rounds' total collected amount
+    await db.update(rounds)
+      .set({
+        totalCollected: sql`${rounds.totalCollected} + ${contribution.amountExpected}`
+      })
+      .where(eq(rounds.id, contribution.roundId))
+
+    // Fetch the circle to check status
+    const activeRound = await db.query.rounds.findFirst({
+        where: eq(rounds.id, contribution.roundId),
+        with: {
+            circle: true
+        }
+    })
+
+    // If circle is pending, move it to 'active' now that money is coming in
+    if (activeRound?.circle?.status === 'pending') {
+        await db.update(circles)
+            .set({ 
+                status: 'active',
+                startDate: new Date()
+            })
+            .where(eq(circles.id, activeRound.circle.id))
+        console.log(`[Verify] Circle ${activeRound.circle.id} is now ACTIVE.`)
+    }
 
     return NextResponse.json({
       success: true,
