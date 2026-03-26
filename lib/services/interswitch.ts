@@ -150,6 +150,7 @@ export class InterswitchService {
           'Authorization': `Bearer ${token}`,
           'Content-Type': 'application/json',
           'Accept': 'application/json',
+          'MerchantCode': this.getMerchantCode(),
         },
       });
 
@@ -226,7 +227,10 @@ export class InterswitchService {
 
       const response = await fetch(url, {
         method: 'GET',
-        headers,
+        headers: {
+          ...headers,
+          'MerchantCode': merchantCode,
+        },
       });
 
       const responseText = await response.text();
