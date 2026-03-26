@@ -1,4 +1,5 @@
 import { pgTable, text, timestamp, boolean, integer, decimal, uuid } from "drizzle-orm/pg-core";
+import { relations } from "drizzle-orm";
 
 // --- Better Auth Tables ---
 
@@ -142,3 +143,54 @@ export const verificationLogs = pgTable("verification_logs", {
   message: text("message"), // Response summary
   createdAt: timestamp("created_at").defaultNow(),
 });
+
+// --- Relations ---
+
+export const userRelations = relations(user, ({ many }) => ({
+  circles: many(circles),
+  memberships: many(circleMembers),
+  notifications: many(notifications),
+}));
+
+export const circleRelations = relations(circles, ({ one, many }) => ({
+  organizer: one(user, {
+    fields: [circles.organizerId],
+    references: [user.id],
+  }),
+  members: many(circleMembers),
+  rounds: many(rounds),
+}));
+
+export const circleMemberRelations = relations(circleMembers, ({ one }) => ({
+  circle: one(circles, {
+    fields: [circleMembers.circleId],
+    references: [circles.id],
+  }),
+  user: one(user, {
+    fields: [circleMembers.userId],
+    references: [user.id],
+  }),
+}));
+
+export const roundRelations = relations(rounds, ({ one, many }) => ({
+  circle: one(circles, {
+    fields: [rounds.circleId],
+    references: [circles.id],
+  }),
+  recipient: one(user, {
+    fields: [rounds.recipientId],
+    references: [user.id],
+  }),
+  contributions: many(contributions),
+}));
+
+export const contributionRelations = relations(contributions, ({ one }) => ({
+  round: one(rounds, {
+    fields: [contributions.roundId],
+    references: [rounds.id],
+  }),
+  member: one(user, {
+    fields: [contributions.memberId],
+    references: [user.id],
+  }),
+}));

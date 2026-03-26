@@ -5,7 +5,7 @@ import { auth } from "@/lib/auth"
 import { headers } from "next/headers"
 import { db } from "@/lib/db/client"
 import { circles, contributions } from "@/lib/db/schema"
-import { eq, sum } from "drizzle-orm"
+import { eq, sum, and } from "drizzle-orm"
 import { QuickActions } from "@/components/dashboard/quick-actions"
 
 export default async function DashboardPage() {
@@ -17,6 +17,8 @@ export default async function DashboardPage() {
   // Fetch real statistics
   let activeCirclesCount = "0"
   let totalSavedAmount = "₦0"
+  let pendingAmount = "₦0"
+  let recentActivities: any[] = []
 
   if (user) {
     const userCircles = await db
@@ -29,20 +31,40 @@ export default async function DashboardPage() {
     const savedResult = await db
       .select({ total: sum(contributions.amountPaid) })
       .from(contributions)
-      .where(eq(contributions.memberId, user.id))
+      .where(and(eq(contributions.memberId, user.id), eq(contributions.paymentVerified, true)))
     
     const totalSaved = savedResult[0]?.total ? parseFloat(savedResult[0].total) : 0
     totalSavedAmount = `₦${totalSaved.toLocaleString()}`
+
+    // Fetch actual recent activities
+    const logs = await db.query.contributions.findMany({
+      where: and(eq(contributions.memberId, user.id), eq(contributions.paymentVerified, true)),
+      orderBy: (contributions, { desc }) => [desc(contributions.paidAt)],
+      limit: 5,
+      with: {
+        round: {
+          with: {
+            circle: true
+          }
+        }
+      }
+    })
+
+    recentActivities = logs.map(log => ({
+      title: `Contribution for ${log.round?.circle?.name || 'Circle'}`,
+      time: log.paidAt ? new Date(log.paidAt).toLocaleDateString() : 'Just now',
+      amount: `+₦${parseFloat(log.amountPaid).toLocaleString()}`,
+    }))
   }
 
   const stats = [
     { name: "Active Circles", value: activeCirclesCount, description: "Circles you organize" },
     { name: "Total Saved", value: totalSavedAmount, description: "All-time accumulated savings" },
     { name: "Next Payout", value: "None", description: "No active rounds yet" },
-    { name: "Pending Contributions", value: "₦0", description: "No ongoing rounds" },
+    { name: "Pending", value: "₦0", description: "No ongoing rounds" },
   ]
 
-  const activities: any[] = [] // Default empty until we add real logs and circles
+  const activities = recentActivities
 
   return (
     <div className="space-y-8">
