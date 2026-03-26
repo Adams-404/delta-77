@@ -41,7 +41,7 @@ export async function POST(req: Request) {
     // 4. Send response via Twilio
     await twilioClient.messages.create({
       body: responseText,
-      from: process.env.TWILIO_WHATSAPP_NUMBER || "whatsapp:+14155238886",
+      from: `whatsapp:${process.env.TWILIO_WHATSAPP_NUMBER || "+14155238886"}`,
       to: from,
     });
 
