@@ -22,48 +22,49 @@ export async function POST(req: Request) {
   }
 
   try {
-    // 1. Locate the contribution record
+    // Locate the contribution record
     const contribution = await db.query.contributions.findFirst({
-        where: eq(contributions.transactionRef, transactionRef)
+      where: eq(contributions.transactionRef, transactionRef)
     })
 
     if (!contribution) {
-        return NextResponse.json({ message: "Contribution record not found" }, { status: 404 })
+      return NextResponse.json({ message: "Contribution record not found" }, { status: 404 })
     }
 
     if (contribution.paymentVerified) {
-        return NextResponse.json({ success: true, message: "Payment already verified" })
+      return NextResponse.json({ success: true, message: "Payment already verified" })
     }
 
-    // 2. Query Interswitch Transaction Search
-    const result = await interswitch.verifyTransaction(transactionRef)
+    // Convert expected amount to kobo for verification
+    const amountInKobo = Math.round(parseFloat(contribution.amountExpected) * 100)
 
-    // For Sandbox/Mocking purposes:
-    // result.success indicates the response came back ok.
-    // In production, verify result.data matches contribution.amountExpected.
+    // Query Interswitch transaction status
+    const result = await interswitch.verifyTransaction(transactionRef, amountInKobo)
+
     if (!result.success) {
-        return NextResponse.json({ message: "Transaction verification failed or not found: " + (result.message || "") }, { status: 400 })
+      return NextResponse.json({
+        message: "Transaction verification failed: " + (result.message || "Unknown error"),
+        data: result.data,
+      }, { status: 400 })
     }
 
-    // Usually you check result.data.status or similar. Sandbox might vary.
-    // For now, assuming success updates state successfully.
-
-    // 3. Mark as verified
+    // Mark contribution as verified
     await db.update(contributions)
       .set({
-          paymentVerified: true,
-          amountPaid: contribution.amountExpected, // Assuming it match expected
-          paidAt: new Date(),
+        paymentVerified: true,
+        amountPaid: contribution.amountExpected,
+        paidAt: new Date(),
       })
       .where(eq(contributions.id, contribution.id))
 
-    return NextResponse.json({ 
-        success: true, 
-        message: "Contribution successfully verified and approved" 
+    return NextResponse.json({
+      success: true,
+      message: "Contribution successfully verified and approved",
+      sandboxMock: result.data?._sandboxMock ?? false,
     })
 
   } catch (error) {
-    console.error("Verification Route Error:", error)
+    console.error("[Contributions Verify Error]:", error)
     return NextResponse.json({ message: "Internal server error during verification" }, { status: 500 })
   }
 }

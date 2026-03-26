@@ -18,30 +18,44 @@ export async function POST(req: Request) {
 
   const { bvn } = await req.json()
 
-  if (!bvn || bvn.length !== 11) {
-    return NextResponse.json({ message: "Invalid BVN" }, { status: 400 })
+  if (!bvn || !/^\d{11}$/.test(bvn)) {
+    return NextResponse.json({ message: "BVN must be exactly 11 digits." }, { status: 400 })
   }
 
   try {
-    const result = await interswitch.verifyBVN(bvn);
+    const result = await interswitch.verifyBVN(bvn)
 
     if (!result.success) {
-      return NextResponse.json({ message: result.message || "BVN Verification Failed" }, { status: 400 });
+      return NextResponse.json({
+        message: result.message || "BVN Verification Failed"
+      }, { status: 400 })
     }
+
+    // Generate a safe hash for storage (never store raw BVN)
+    const bvnHash = `verified_${bvn.substring(0, 3)}****${bvn.substring(7)}`
+    const isSandbox = result.data?._sandboxMock === true
 
     // Update user in DB
     await db
       .update(userTable)
-      .set({ 
+      .set({
         bvnVerified: true,
-        // In reality, you'd store a hash or partial info from Interswitch
-        bvnHash: `verified_${bvn.substring(0, 3)}****${bvn.substring(7)}` 
+        bvnHash: bvnHash,
       })
       .where(eq(userTable.id, session.user.id))
 
-    return NextResponse.json({ success: true, message: "BVN verified successfully" })
+    return NextResponse.json({
+      success: true,
+      message: isSandbox
+        ? "BVN verified successfully (sandbox mode — BVN API not yet enabled for live calls)"
+        : "BVN verified successfully",
+      sandboxMode: isSandbox,
+      // Return partial name info if available from Interswitch
+      firstName: result.data?.firstName,
+      lastName: result.data?.lastName,
+    })
   } catch (error) {
-    console.error("KYC Verification Error:", error)
+    console.error("[KYC Verification Error]:", error)
     return NextResponse.json({ message: "Internal server error" }, { status: 500 })
   }
 }
