@@ -2,7 +2,10 @@ import { NextResponse } from "next/server";
 import { type NextRequest } from "next/server";
 
 export function middleware(request: NextRequest) {
-  const sessionToken = request.cookies.get("better-auth.session_token")?.value;
+  // Check for both production secure cookie and development cookie
+  const sessionToken = 
+    request.cookies.get("__Secure-better-auth.session_token")?.value ||
+    request.cookies.get("better-auth.session_token")?.value;
 
   if (request.nextUrl.pathname.startsWith("/dashboard")) {
     if (!sessionToken) {
