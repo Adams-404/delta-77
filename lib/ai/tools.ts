@@ -1,12 +1,15 @@
-import { 
-  createCircleCore, 
-  listUserCirclesCore, 
-  getCircleDetailsCore, 
+import {
+  createCircleCore,
+  listUserCirclesCore,
+  getCircleDetailsCore,
   searchCirclesCore,
-  joinCircleCore 
+  joinCircleCore
 } from "@/app/actions/circles";
 import { db } from "@/lib/db";
-import { contributions as contributionsTable } from "@/lib/db/schema";
+import {
+  contributions as contributionsTable,
+  user as userTable
+} from "@/lib/db/schema";
 import { eq } from "drizzle-orm";
 
 /**
@@ -90,7 +93,7 @@ export const AI_TOOLS = [
  */
 export async function executeAiAction(toolCall: any, context: { userId?: string, phoneNumber: string }) {
   const { name, arguments: argsString } = toolCall.function;
-  
+
   let args: any;
   try {
     args = JSON.parse(argsString);
@@ -101,28 +104,40 @@ export async function executeAiAction(toolCall: any, context: { userId?: string,
   console.log(`🤖 AI ACTION TRIGGERED: ${name}`, args);
 
   try {
+    // Fallback: If userId is missing, try to find the user by phone number
+    let effectiveUserId = context.userId;
+    if (!effectiveUserId && context.phoneNumber) {
+      const [dbUser] = await db
+        .select()
+        .from(userTable)
+        .where(eq(userTable.phoneNumber, context.phoneNumber));
+      if (dbUser) effectiveUserId = dbUser.id;
+    }
+
+    const regMessage = `I couldn't find your account. Please register at ${process.env.NEXT_PUBLIC_APP_URL || "https://esux.vercel.app"}/register and verify your phone number there first!`;
+
     switch (name) {
       case "create_circle": {
-        if (!context.userId) return { error: "User not authenticated. I need you to sign in first." };
-        
+        if (!effectiveUserId) return { error: regMessage };
+
         const required = ["name", "amount", "frequency", "maxMembers"];
         const missing = required.filter(field => !args[field]);
-        
+
         if (missing.length > 0) {
-          return { 
+          return {
             error: `Missing required information: ${missing.join(", ")}.`,
             instruction: "Please ask the user for these specific details. You can suggest they use the Circle Creation Form."
           };
         }
 
-        const newCircle = await createCircleCore(context.userId, {
+        const newCircle = await createCircleCore(effectiveUserId, {
           name: args.name,
           description: args.description || "",
           amount: args.amount,
           frequency: args.frequency,
           maxMembers: args.maxMembers
         });
-        
+
         return {
           ...newCircle,
           message: `Circle created! View it at /dashboard/circles/${newCircle.slug}`
@@ -130,8 +145,8 @@ export async function executeAiAction(toolCall: any, context: { userId?: string,
       }
 
       case "list_my_circles":
-        if (!context.userId) return { error: "User not identified. Please register or log in." };
-        return await listUserCirclesCore(context.userId);
+        if (!effectiveUserId) return { error: regMessage };
+        return await listUserCirclesCore(effectiveUserId);
 
       case "get_circle_details":
         if (!args.circleIdOrSlug) return { error: "I need a Circle ID or Slug to get details." };
@@ -139,20 +154,20 @@ export async function executeAiAction(toolCall: any, context: { userId?: string,
 
 
       case "join_circle": {
-        if (!context.userId) return { error: "User not authenticated." };
+        if (!effectiveUserId) return { error: regMessage };
         if (!args.circleId) return { error: "Circle ID is required to join." };
-        
+
         // Check if it's a dummy ID
         if (args.circleId.includes("id_of") || args.circleId === "123") {
           return { error: "I don't have the real Circle ID yet. Please ask the user to provide the exact Circle ID from the owner." };
         }
 
-        return await joinCircleCore(context.userId, args.circleId);
+        return await joinCircleCore(effectiveUserId, args.circleId);
       }
 
       case "get_financial_summary":
-        if (!context.userId) return { error: "User not identified." };
-        const contributions = await db.select().from(contributionsTable).where(eq(contributionsTable.memberId, context.userId));
+        if (!effectiveUserId) return { error: regMessage };
+        const contributions = await db.select().from(contributionsTable).where(eq(contributionsTable.memberId, effectiveUserId));
         const totalSaved = contributions.length > 0 ? contributions.reduce((sum, c) => sum + parseFloat(c.amountPaid), 0) : 0;
         return { totalSaved, contributionCount: contributions.length };
 
