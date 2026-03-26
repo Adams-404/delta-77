@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server";
 import { db } from "@/lib/db";
 import { user as userTable, messages as messagesTable } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 import { twilioClient } from "@/lib/twilio";
 import { processBotMessage } from "@/lib/ai/agent";
 
@@ -14,11 +14,19 @@ export async function POST(req: Request) {
 
     console.log(`Received WhatsApp message from ${phoneNumber}: ${body}`);
 
-    // 1. Identify User
+    // 1. Identify User (Robust check for +234 vs 0 format)
+    const localNumber = phoneNumber.endsWith(phoneNumber.slice(-10)) ? `0${phoneNumber.slice(-10)}` : phoneNumber;
+    
     let [user] = await db
       .select()
       .from(userTable)
-      .where(eq(userTable.phoneNumber, phoneNumber));
+      .where(
+        or(
+          eq(userTable.phoneNumber, phoneNumber),
+          eq(userTable.phoneNumber, localNumber),
+          eq(userTable.phoneNumber, phoneNumber.slice(-10)) // last 10 digits
+        )
+      );
 
     // 2. Save incoming message to DB
     await db.insert(messagesTable).values({

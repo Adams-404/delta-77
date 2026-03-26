@@ -14,7 +14,16 @@ export async function getUserContext(userId: string | undefined | null, phoneNum
   // 1. Get circles where user is a member (by userId or phoneNumber)
   const conditions = [];
   if (userId) conditions.push(eq(circleMembersTable.userId, userId));
-  if (phoneNumber) conditions.push(eq(circleMembersTable.phoneNumber, phoneNumber));
+  if (phoneNumber) {
+    const local = phoneNumber.slice(-10);
+    conditions.push(
+      or(
+        eq(circleMembersTable.phoneNumber, phoneNumber),
+        eq(circleMembersTable.phoneNumber, `0${local}`),
+        eq(circleMembersTable.phoneNumber, local)
+      )
+    );
+  }
 
   const memberEntries = await db
     .select({ circleId: circleMembersTable.circleId })

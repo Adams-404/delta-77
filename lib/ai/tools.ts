@@ -10,7 +10,7 @@ import {
   contributions as contributionsTable,
   user as userTable
 } from "@/lib/db/schema";
-import { eq } from "drizzle-orm";
+import { eq, or } from "drizzle-orm";
 
 /**
  * Definition of tools the AI Agent can use.
@@ -107,10 +107,17 @@ export async function executeAiAction(toolCall: any, context: { userId?: string,
     // Fallback: If userId is missing, try to find the user by phone number
     let effectiveUserId = context.userId;
     if (!effectiveUserId && context.phoneNumber) {
+      const local = context.phoneNumber.slice(-10);
       const [dbUser] = await db
         .select()
         .from(userTable)
-        .where(eq(userTable.phoneNumber, context.phoneNumber));
+        .where(
+          or(
+            eq(userTable.phoneNumber, context.phoneNumber),
+            eq(userTable.phoneNumber, `0${local}`),
+            eq(userTable.phoneNumber, local)
+          )
+        );
       if (dbUser) effectiveUserId = dbUser.id;
     }
 
