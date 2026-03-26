@@ -108,6 +108,19 @@ export default async function CircleDetailPage(props: { params: Promise<{ slug: 
   const isFull = acceptedCount === circle.maxMembers;
   const isMember = members.some(m => m.userId === viewer.id && m.status === "accepted");
 
+  // --- Auto-Repair Status: If full but still pending, mark as active ---
+  if (isFull && circle.status === "pending") {
+      await db.update(circles)
+          .set({ status: 'active', startDate: new Date() })
+          .where(eq(circles.id, circle.id));
+      // Update local circle object to reflect change in current render
+      circle.status = "active";
+  }
+
+  const hasPaidCurrentRound = recentContributions.some(
+    c => c.memberId === viewer.id && c.round?.roundNumber === circle.currentRound && c.paymentVerified
+  );
+
   return (
     <div className="space-y-8 max-w-7xl w-full">
       <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-4">
@@ -126,11 +139,19 @@ export default async function CircleDetailPage(props: { params: Promise<{ slug: 
           {viewer?.id === circle.organizerId && <EditCircleModal circle={circle} membersCount={acceptedCount} />}
           <CircleInfoModal circle={circle} />
           {isMember && (
-            <Link href={`/dashboard/circles/${slug}/payment`}>
-              <Button variant="outline" size="sm" className="text-xs flex items-center gap-1.5 rounded-full border-neutral-200/80 shadow-sm cursor-pointer transition-all duration-300 ease-in-out hover:bg-[#6C3AFA]/10 hover:text-[#6C3AFA] hover:border-[#6C3AFA]/30">
-                <CreditCardIcon className="w-3.5 h-3.5 transition-colors duration-300" /> Make Contribution
-              </Button>
-            </Link>
+            hasPaidCurrentRound ? (
+              <Link href={`/dashboard/receipt/${recentContributions.find(c => c.memberId === viewer.id)?.id}`}>
+                <Button variant="outline" size="sm" className="text-xs flex items-center gap-1.5 rounded-full border-[#00D4AA]/30 bg-[#00D4AA]/5 text-[#00D4AA] hover:bg-[#00D4AA]/10 transition-all">
+                  <ShieldCheckIcon className="w-3.5 h-3.5" /> Contribution Paid
+                </Button>
+              </Link>
+            ) : (
+              <Link href={`/dashboard/circles/${slug}/payment`}>
+                <Button variant="outline" size="sm" className="text-xs flex items-center gap-1.5 rounded-full border-neutral-200/80 shadow-sm cursor-pointer transition-all duration-300 ease-in-out hover:bg-[#6C3AFA]/10 hover:text-[#6C3AFA] hover:border-[#6C3AFA]/30">
+                  <CreditCardIcon className="w-3.5 h-3.5 transition-colors duration-300" /> Make Contribution
+                </Button>
+              </Link>
+            )
           )}
         </div>
       </div>
@@ -146,7 +167,7 @@ export default async function CircleDetailPage(props: { params: Promise<{ slug: 
               title={circle.status === "pending" ? "The status will change once the savings cycle begins" : undefined}
               className="px-3 py-1 bg-teal-500/10 text-[#00D4AA] border border-[#00D4AA]/20 rounded-full text-xs font-medium uppercase cursor-help"
             >
-              {circle.status}
+              {circle.status === "pending" ? "Upcoming" : circle.status}
             </span>
           </div>
 
