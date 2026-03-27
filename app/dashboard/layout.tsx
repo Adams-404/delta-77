@@ -113,7 +113,7 @@ export default function DashboardLayout({
   const SidebarContent = () => (
     <>
       <div className="p-6 flex items-center justify-between lg:block">
-        <Link href="/" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2">
+        <Link href="/dashboard" onClick={() => setMobileMenuOpen(false)} className="flex items-center gap-2">
           <div className="relative w-10 h-10">
             <Image 
               src="/esux-logo.png" 
