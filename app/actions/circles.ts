@@ -4,7 +4,7 @@ import { circles, circleMembers } from "@/lib/db/schema";
 import { auth } from "@/lib/auth";
 import { headers } from "next/headers";
 import { revalidatePath } from "next/cache";
-import { eq, and, ilike, sql } from "drizzle-orm";
+import { eq, and, or, ilike, sql } from "drizzle-orm";
 
 // Helper to generate quick random string IDs
 const generateId = () => Math.random().toString(36).substring(2, 11).toUpperCase();
@@ -102,13 +102,13 @@ export async function getCircleDetailsCore(circleIdOrSlug: string) {
   const [circle] = await db
     .select()
     .from(circles)
-    .where(eq(circles.slug, circleIdOrSlug)); // Try slug first
+    .where(or(
+      ilike(circles.slug, circleIdOrSlug),
+      eq(circles.id, circleIdOrSlug),
+      ilike(circles.name, circleIdOrSlug)
+    )); 
   
   let finalCircle = circle;
-  if (!finalCircle) {
-    const [byId] = await db.select().from(circles).where(eq(circles.id, circleIdOrSlug));
-    finalCircle = byId;
-  }
 
   if (!finalCircle) return { error: "Circle not found" };
 

@@ -13,7 +13,7 @@ import {
   rounds as roundsTable,
   circleMembers as circleMembersTable
 } from "@/lib/db/schema";
-import { eq, or, and, desc } from "drizzle-orm";
+import { eq, or, and, desc, ilike } from "drizzle-orm";
 
 /**
  * Definition of tools the AI Agent can use.
@@ -217,13 +217,17 @@ export async function executeAiAction(toolCall: any, context: { userId?: string,
         if (!effectiveUserId) return { error: regMessage };
         if (!args.circleIdOrSlug) return { error: "I need a circle ID to check status." };
 
-        // 1. Find Circle
+        // 1. Find Circle (Fuzzy/Robust match)
         let circle: any;
-        const [bySlug] = await db.select().from(circlesTable).where(eq(circlesTable.slug, args.circleIdOrSlug));
+        const [bySlug] = await db.select().from(circlesTable).where(ilike(circlesTable.slug, args.circleIdOrSlug));
         circle = bySlug;
         if (!circle) {
           const [byId] = await db.select().from(circlesTable).where(eq(circlesTable.id, args.circleIdOrSlug));
           circle = byId;
+        }
+        if (!circle) {
+          const [byName] = await db.select().from(circlesTable).where(ilike(circlesTable.name, args.circleIdOrSlug));
+          circle = byName;
         }
         if (!circle) return { error: "Circle not found." };
 

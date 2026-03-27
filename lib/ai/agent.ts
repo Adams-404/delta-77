@@ -31,6 +31,8 @@ You are the EsuX AI — a high-performance financial assistant.
      - Correct: [ACTION: CONTRIBUTION_CONTROLS: circleId=...; hasPaid=true; slug=...; amount=...]
      - Error-Avoidance: Do NOT put spaces before "ACTION" or after the closing bracket.
    - **NO HALLUCINATIONS:** Never say "success" unless 'hasPaid: true' is returned by the tool.
+   - **NO EXTERNAL LINKS:** NEVER provide links to Paystack, Flutterwave, or any other external payment gateway yourself. You are strictly forbidden from guessing or generating payment URLs. If 'check_contribution_status' fails, ask the user for the correct Circle name.
+   - **VERIFICATION:** When a user says they've paid or asks to "verify" their contribution, ALWAYS call 'check_contribution_status' for that circle to confirm if the payment is reflected in the system.
    - **General Status:** Use 'check_all_my_contributions_summary' for general inquiries.
 
 4. [FORMATTING_GUIDELINES]
@@ -172,12 +174,18 @@ function formatResponseForChannel(text: string, channel: "web" | "whatsapp"): st
       const list = items.split("|").map((i: string) => `• ${i.trim()}`).join("\n");
       return `\n*Try typing one of these:*\n${list}`;
     })
-    // 3. Handle Action tags for WhatsApp - make them readable prompts
+    // 3. Handle Payment Action tags for WhatsApp - make them readable prompts + provide links
+    .replace(/\[ACTION: CONTRIBUTION_CONTROLS:[^\]]*slug=([^;\]]+); amount=([^;\]]+)?[^\]]*\]/gi, (match, slug, amount) => {
+      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://esux.vercel.app";
+      const url = `${baseUrl}/dashboard/circles/${slug}`;
+      return `*Payment Needed:* ${amount ? "₦" + amount : "Contribution"}\nLink to pay securely: ${url}\n\n(After paying, reply with "I've paid" or "check now" for me to verify your payment status)`;
+    })
+    // 4. Handle remaining Action tags for WhatsApp - make them readable prompts
     // Example: "[ACTION: ...] (confirm)" -> "type *confirm*"
     .replace(/\[ACTION:[^\]]*\]\s*\(([^)]+)\)/gi, (_, label) => `type "*${label}*"`)
-    // 4. Remove any remaining raw action tags
+    // 5. Remove any remaining raw action tags
     .replace(/\[ACTION:[^\]]*\]/g, "")
-    // 5. Flatten triple line breaks
+    // 6. Flatten triple line breaks
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
