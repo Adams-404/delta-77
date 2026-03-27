@@ -1,6 +1,6 @@
 "use client"
 import { useState, useRef, useEffect } from "react"
-import { SendIcon, BotIcon, Sparkles, History, ArrowUpRight, Loader2, User, Info, Plus, CreditCardIcon } from "lucide-react"
+import { SendIcon, BotIcon, Sparkles, History, ArrowUpRight, Loader2, User, Info, Plus, CreditCardIcon, MessageCircle } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { cn } from "@/lib/utils"
@@ -160,6 +160,36 @@ export default function ChatPage() {
              <Info className="w-4 h-4" />
            </Button>
         </div>
+      </motion.div>
+
+      {/* WhatsApp CTA Banner */}
+      <motion.div
+        initial={{ opacity: 0, y: -6 }}
+        animate={{ opacity: 1, y: 0 }}
+        transition={{ delay: 0.2 }}
+        className="flex items-center justify-between gap-3 px-4 py-2.5 bg-[#25D366]/5 border-x border-b border-[#25D366]/10 text-sm z-20"
+      >
+        <div className="flex items-center gap-2.5">
+          <div className="w-7 h-7 bg-[#25D366]/15 rounded-lg flex items-center justify-center shrink-0">
+            <MessageCircle className="w-4 h-4 text-[#25D366]" />
+          </div>
+          <div>
+            <p className="text-[11px] font-bold text-white/80 leading-tight">Also on WhatsApp</p>
+            <p className="text-[10px] text-white/40 leading-tight">
+              Send <span className="font-mono font-bold text-[#25D366]/80">join got-due</span> to{" "}
+              <span className="font-semibold text-white/50">+1 (415) 523-8886</span> to start chatting
+            </p>
+          </div>
+        </div>
+        <a
+          href="https://wa.me/14155238886?text=join%20got-due"
+          target="_blank"
+          rel="noopener noreferrer"
+          className="shrink-0 flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-[#25D366]/10 border border-[#25D366]/20 text-[#25D366] text-[10px] font-bold hover:bg-[#25D366]/20 transition-colors active:scale-95"
+        >
+          <MessageCircle className="w-3 h-3" />
+          Open WhatsApp
+        </a>
       </motion.div>
 
       {/* Chat Container */}
