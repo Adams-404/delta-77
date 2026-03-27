@@ -18,7 +18,7 @@ Traditional **Esusu** (also known as Ajo, Adashe, or Susu) is how millions of pe
 - Who gets the payout first?
 - Where is the record of what I've paid?
 
-**EsuX solves this.** We’ve taken the cultural beauty of rotating savings and automated it with **Next.js**, **Interswitch**, and **Gemini AI**. No more manual tracking, no more "I forgot to pay," and zero friction.
+**EsuX solves this.** We’ve taken the cultural beauty of rotating savings and automated it with **Next.js**, **Interswitch**, and **Groq (Llama 3.1)**. No more manual tracking, no more "I forgot to pay," and zero friction.
 
 ---
 
@@ -28,7 +28,7 @@ Traditional **Esusu** (also known as Ajo, Adashe, or Susu) is how millions of pe
 You don't need to download another app. EsuX lives where you already talk to your friends.
 - Create or join a circle just by chatting.
 - Check your balance, see your next payout date, and make payments — all in natural English (or Pidgin!).
-- Powered by **Google Gemini 1.5** for intelligent, context-aware conversations.
+- Powered by **Groq (Llama 3.1)** for intelligent, context-aware conversations.
 
 ### 💳 2. Secure & Verified Payments
 Trust is built-in. We use **Interswitch** to:
@@ -70,7 +70,7 @@ EsuX is built on a rock-solid foundation:
 - **Frontend**: Next.js 15 (App Router), Tailwind CSS, Framer Motion.
 - **Backend & Database**: Node.js, PostgreSQL (via Supabase), Drizzle ORM.
 - **Identity & Payments**: Interswitch (BVN Full Details & Bills Payment).
-- **Communication**: Twilio WhatsApp API & Google Gemini AI.
+- **Communication**: Twilio WhatsApp API & Groq (Llama 3.1).
 
 > [!TIP]
 > **Developing EsuX?** Check out our [Technical Documentation](./TECHNICAL.md) for a deep dive into the code.

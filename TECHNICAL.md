@@ -14,7 +14,7 @@ graph TD
     User([User])
     Web[Web Dashboard - Next.js]
     WhatsApp[WhatsApp Bot - Twilio]
-    AI[Gemini 1.5 AI - Logic]
+    AI[Groq Llama 3.1 - Logic]
     DB[(PostgreSQL - Drizzle)]
     ISW[Interswitch Gateway - Payments]
 
@@ -33,7 +33,7 @@ Users can interact with the system through two main channels:
 
 ### The Flow of Data
 - **Web/Mobile**: Next.js App Router -> Server Actions/API Routes -> Drizzle ORM -> PostgreSQL.
-- **WhatsApp**: Twilio Webhook -> Next.js API Route -> Gemini AI (Natural Language Processing) -> Tool Calling -> Database -> WhatsApp Response.
+- **WhatsApp**: Twilio Webhook -> Next.js API Route -> Groq (Llama 3.1) -> Tool Calling -> Database -> WhatsApp Response.
 - **Payments**: Frontend (Interswitch Web Checkout) -> Interswitch Gateway -> Webhook/Polling -> Database Update.
 
 ---
@@ -46,7 +46,7 @@ Users can interact with the system through two main channels:
 | **Language** | [TypeScript](https://www.typescriptlang.org/) | Type safety across the entire stack, from DB schema to API responses. |
 | **Database** | [PostgreSQL](https://www.postgresql.org/) (via Supabase) | Relational data is perfect for ledgers and contribution tracking. |
 | **ORM** | [Drizzle ORM](https://orm.drizzle.team/) | Lightweight, type-safe, and handles migrations flawlessly. |
-| **AI Engine** | [Google Gemini 1.5](https://ai.google.dev/) | Multimodal capabilities and large context window for handling complex group savings logic. |
+| **AI Engine** | [Groq (Llama 3.1)](https://groq.com/) | Extremely low latency and high accuracy for rapid WhatsApp interactions. |
 | **Messaging** | [Twilio WhatsApp API](https://www.twilio.com/whatsapp) | Reliable delivery and easy-to-use webhook system. |
 | **Payments** | [Interswitch](https://www.interswitchgroup.com/) | Robust infrastructure for Nigerian financial transactions and KYC (BVN). |
 | **Styling** | [Tailwind CSS](https://tailwindcss.com/) + [shadcn/ui](https://ui.shadcn.com/) | Rapid UI development with a premium, consistent look. |
@@ -83,9 +83,9 @@ The bot isn't just a simple responder; it's an **Agent**.
 
 1. **Input**: A user sends a message like *"I want to pay for my Monday circle"*.
 2. **Context**: The system identifies the user by their phone number and retrieves their active circles.
-3. **Reasoning**: Gemini AI analyzes the intent and decides it needs to call a "tool" (e.g., `getCircleDetails`).
+3. **Reasoning**: Groq (Llama 3.1) analyzes the intent and decides it needs to call a "tool" (e.g., `getCircleDetails`).
 4. **Action**: The tool queries the database and returns the current status.
-5. **Output**: Gemini formats a friendly response: *"You're all set! I've found your Monday circle. The contribution is ₦5,000. Here is your unique payment link..."*
+5. **Output**: The AI agent formats a friendly response: *"You're all set! I've found your Monday circle. The contribution is ₦5,000. Here is your unique payment link..."*
 
 ---
 
@@ -103,7 +103,7 @@ npm install
 ### 2. Environment Variables
 Create a `.env` file based on `.env.example`. You will need:
 - `DATABASE_URL`: Your PostgreSQL connection string.
-- `GEMINI_API_KEY`: For the AI bot.
+- `GROQ_API_KEY`: For the AI bot.
 - `TWILIO_ACCOUNT_SID` / `AUTH_TOKEN`: For WhatsApp messaging.
 - `INTERSWITCH_CLIENT_ID` / `SECRET`: For payments.
 

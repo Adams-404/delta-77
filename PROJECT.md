@@ -36,7 +36,7 @@ EsuX solves all of this.
 - No app download needed
 - Entire savings circle managed through conversation
 - Reminders, payments, announcements — all on WhatsApp
-- Powered by Gemini AI for natural language understanding
+- Powered by **Groq (Llama 3.1)** for natural language understanding
 
 ### 2. Web Dashboard (esux.app)
 - Landing page explaining the product
@@ -59,7 +59,7 @@ EsuX solves all of this.
 | Auth | Better Auth |
 | Database | Supabase (PostgreSQL) |
 | ORM | Drizzle ORM |
-| AI | Google Gemini API |
+| AI | Groq (Llama 3.1) API |
 | WhatsApp | Twilio WhatsApp Business API |
 | Payments | Interswitch Bills Payment API |
 | Identity | Interswitch BVN Full Details + WhatsApp OTP |
