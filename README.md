@@ -2,7 +2,10 @@
 
 **Transforming the traditional Esusu / Ajo with Transparency, Trust, and AI.**
 
-[Live Website](https://esux.vercel.app/) • [Technical Documentation](./TECHNICAL.md) • [WhatsApp Bot](https://wa.me/your-bot-number)
+[Live Website](https://esux.vercel.app/) • [Technical Documentation](./TECHNICAL.md) • [WhatsApp Bot](https://wa.me/14155238886?text=join%20got-due)
+
+**WhatsApp Number:** +1 (415) 523-8886  
+**Sandbox Code:** `join got-due`
 
 ---
 
@@ -29,7 +32,8 @@ You don't need to download another app. EsuX lives where you already talk to you
 
 ### 💳 2. Secure & Verified Payments
 Trust is built-in. We use **Interswitch** to:
-- Verify every member using their **BVN** (No "ghost" members).
+- Verify every member using their **BVN**.
+  - *Note: During the hackathon/demo phase (while our Interswitch business review is pending), BVN verification is set to **Auto-Verify**. Any 11-digit input will be accepted to allow you to explore all features.*
 - Automate contributions through secure web checkout.
 - Provide a clear, unchangeable digital ledger of every Kobo saved.
 

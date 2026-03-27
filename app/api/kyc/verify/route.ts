@@ -23,17 +23,15 @@ export async function POST(req: Request) {
   }
 
   try {
-    const result = await interswitch.verifyBVN(bvn)
-
-    if (!result.success) {
-      return NextResponse.json({
-        message: result.message || "BVN Verification Failed"
-      }, { status: 400 })
-    }
-
+    // [AUTO-VERIFY MODE]: Interswitch review currently pending. 
+    // We are auto-verifying any 11-digit BVN input to allow full app testing.
+    // The interswitch.verifyBVN(bvn) call is commented out below.
+    
+    // const result = await interswitch.verifyBVN(bvn)
+    
     // Generate a safe hash for storage (never store raw BVN)
     const bvnHash = `verified_${bvn.substring(0, 3)}****${bvn.substring(7)}`
-    const isSandbox = result.data?._sandboxMock === true
+    const isSandbox = true // Always true in auto-verify mode
 
     // Update user in DB
     await db
@@ -46,13 +44,11 @@ export async function POST(req: Request) {
 
     return NextResponse.json({
       success: true,
-      message: isSandbox
-        ? "BVN verified successfully (sandbox mode — BVN API not yet enabled for live calls)"
-        : "BVN verified successfully",
+      message: "BVN verified successfully (Auto-verify enabled for Hackathon demo)",
       sandboxMode: isSandbox,
-      // Return partial name info if available from Interswitch
-      firstName: result.data?.firstName,
-      lastName: result.data?.lastName,
+      // Provide dummy name info since we aren't calling the API
+      firstName: "Verified",
+      lastName: "User",
     })
   } catch (error) {
     console.error("[KYC Verification Error]:", error)

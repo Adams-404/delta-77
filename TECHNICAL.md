@@ -56,10 +56,12 @@ Users can interact with the system through two main channels:
 ## 💳 Payment & Identity Logic
 
 ### Identity Verification (KYC)
-Trust is the foundation of EsuX. We use the **Interswitch BVN Full Details API** to ensure that:
-1. Every member is a real person.
-2. The name on the savings circle matches the name on the bank account.
-3. Ghost members are eliminated from the start.
+Trust is the foundation of EsuX. We use the **Interswitch BVN Full Details API** to verify members.
+
+> [!IMPORTANT]
+> **Auto-Verify Mode (Hackathon/Demo)**: Our Interswitch merchant account is currently in the "Pending Review" state. To ensure the judging team can test the full application flow (including restricted payment features), we have implemented an **Auto-Verify** logic:
+> - Any 11-digit BVN input is accepted.
+> - The application bypasses the Interswitch API call for identity and proceeds as "Verified".
 
 ### The "Virtual Ledger" System
 While all funds are settled into a single Interswitch Merchant account, EsuX maintains a **Digital Ledger** to separate funds:
@@ -74,6 +76,10 @@ This ensures that even with one pool of physical cash, we know exactly who owns 
 ## 🤖 WhatsApp Bot Implementation
 
 The bot isn't just a simple responder; it's an **Agent**.
+
+**Sandbox WhatsApp Details:**
+- **Number:** +1 (415) 523-8886
+- **Activation Code:** `join got-due`
 
 1. **Input**: A user sends a message like *"I want to pay for my Monday circle"*.
 2. **Context**: The system identifies the user by their phone number and retrieves their active circles.
