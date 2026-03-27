@@ -134,5 +134,5 @@ This project was built with ❤️ by:
 Have questions or want to collaborate? Reach out to the project Lead at [muhammadadamualiyu33@gmail.com](mailto:muhammadadamualiyu33@gmail.com).
 
 ---
-*Built for the Interswitch/Google AI Hackathon 2024.*
+*Built for the Interswitch/Enyata Buildathon 2026.*
 *EsuX - Savings, reimagined.*
