@@ -36,7 +36,7 @@ EsuX isn't just a bot; it's a financial agent that understands you. Unlike tradi
 
 **Onboarding & Security:**
 > [!CAUTION]
-> **Registration Required**: To protect your funds, the WhatsApp Bot **cannot** interact with anonymous users. 
+> **Registration Required**: To protect your funds, and for the WhatsApp Bot to be able to authenticate and know you.. we  **cannot** interact with anonymous users.. so you need to first register with the whatapp number you wanna talk to it with.
 > 1. You **must** first register on the [Web Dashboard](https://esux.vercel.app/register).
 > 2. You **must** verify your phone number.
 > 3. The Bot uses your phone number as your **Unique Identity** to bridge your WhatsApp messages with your secure financial vault.
