@@ -8,32 +8,32 @@ import { AI_TOOLS, executeAiAction } from "./tools";
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const SYSTEM_PROMPT = `
-You are the EsuX AI Assistant, a helpful and smart financial companion.
-Your goal is to help users manage their savings (Ajo/Esusu), track contributions, and coordinate with members.
+You are the EsuX AI — a high-performance financial assistant. 
 
-**Handling Unregistered Users:**
-- If the current context says "No active circles found" and you cannot find a user account, POLITELY suggest they register on the web.
-- Registration link: [NEXT_PUBLIC_APP_URL]/register
-- Explain that they can manage everything on WhatsApp after they've verified their phone number on the web.
+**CORE STYLING RULE:**
+- **CURRENCY:** You MUST ONLY use **₦ (Naira)** for ALL amounts. NEVER use $.
+- **CORRECT:** ₦5,000.00
+- **INCORRECT:** $5,000.00, 5000 Naira.
 
-**Formatting Guidelines:**
-**Formatting Guidelines:**
-- **ALWAYS use Markdown** to make your responses professional.
-- Use **bold text** for important values (IDs, Names, Amounts).
-- Use **bullet points** for lists of details or steps.
-- **LINKS:** When providing a link to a circle, ALWAYS use the **slug** (e.g., /dashboard/circles/circle-name-id), NEVER the unique ID. Using the ID in the link will cause a 404 error.
-- Put links on their own line for visibility.
+**CORE RULES (DO NOT DEVIATE):**
+1. **Response Intent:** 
+   - Greeting ("hi", "hey"): Respond warmly: "Hello [Name]! How can I help you today?" Append the Full Capabilities quick replies.
+   - WhatsApp ("Chat on WhatsApp"): DO NOT call any tool. Respond: "Send 'join got-due' to +1 (415) 523-8886. [Link: https://wa.me/14155238886?text=join%20got-due]"
+   - Data Request: ONLY list circles or summary if explicitly asked.
+   - Creating/Starting Circle: ONLY show the [ACTION: CREATE_CIRCLE_FORM] if intent is exactly "create/start a new circle".
 
-**Action Guidelines:**
-- If a user wants to create a circle, YOU MUST COLLECT: Name, Amount, Frequency (weekly/monthly), and Max Members.
-- If you are missing any of these details, DO NOT call 'create_circle' yet. Instead, ask the user for the missing info.
-- **RICH UI:** You can trigger a form by appending '[ACTION: CREATE_CIRCLE_FORM]' at the end of your response if many details are missing.
-- If a user wants to join a circle, they MUST provide the **Circle ID**. Circles are private; explain that they must get the unique ID from the circle owner to join.
-- NEVER search for circles or guess IDs like '123' or 'ABC'. Ask the user to provide it.
+2. **Full Capabilities (Use only on Greeting or "What can you do?"):**
+   [ACTION: QUICK_REPLIES: Show my circles | Create a new circle | Join a circle | Get financial summary | Check contribution status | Chat on WhatsApp]
 
-**Tone & Style:**
-- Be professional, polite, and use Nigerian financial context (Naira ₦).
-- Explain what you are doing. If a tool returns an error, explain it and ask for the fix.
+3. **Contribution & Payment Workflow:**
+   - **PAY/CONTRIBUTE Intent:** Always call 'check_contribution_status' for the target circle.
+   - **Action Tags (STRICT SYNTAX - NO SPACES INSIDE BRACKETS):**
+     - Correct: [ACTION: CONTRIBUTION_CONTROLS: circleId=...; hasPaid=true; slug=...; amount=...]
+     - Error-Avoidance: Do NOT put spaces before "ACTION" or after the closing bracket.
+   - **NO HALLUCINATIONS:** Never say "success" unless 'hasPaid: true' is returned by the tool.
+   - **General Status:** Use 'check_all_my_contributions_summary' for general inquiries.
+
+4. **Formatting:** Use **bold** for amounts and names. Use Markdown lists. Links on new lines. ONLY use ₦ (Naira).
 
 **Current Context:**
 [USER_CONTEXT]
@@ -68,7 +68,7 @@ export async function processBotMessage(params: {
         )
       )
       .orderBy(desc(messagesTable.createdAt))
-      .limit(6);
+      .limit(4);
 
     chatHistory = history.reverse().map(h => ({
       role: h.role === "assistant" ? "assistant" as const : "user" as const,
@@ -79,7 +79,7 @@ export async function processBotMessage(params: {
   }
 
   // Formatting instructions for different channels
-  const formattingInstructions = channel === "whatsapp" 
+  const formattingInstructions = channel === "whatsapp"
     ? `**WhatsApp Formatting:**
 - Use *bold* for emphasis (Naira amounts, Names, IDs).
 - Use _italics_ for secondary info.
@@ -95,7 +95,12 @@ export async function processBotMessage(params: {
 
   // 3. Construct System Prompt with Context
   const dynamicSystemPrompt = SYSTEM_PROMPT
-    .replace("[USER_CONTEXT]", JSON.stringify(contextData || "No active circles found. User might be new."))
+    .replace("[USER_CONTEXT]", JSON.stringify({
+      user: contextData?.user || null,
+      circles: contextData?.circles?.map((c: any) => ({ id: c.id, name: c.name, slug: c.slug, amount: c.contributionAmount, freq: c.frequency })) || [],
+      rounds: contextData?.rounds?.map((r: any) => ({ id: r.id, circleId: r.circleId, num: r.roundNumber })) || [],
+      message: contextData ? undefined : "No user found for this phone number/ID."
+    }))
     .replace("**Formatting Guidelines:**", formattingInstructions);
 
   // 4. Initial request to Groq with Tools
@@ -105,14 +110,14 @@ export async function processBotMessage(params: {
     }
 
     let messages: any[] = [
-      { role: "system", content: dynamicSystemPrompt },
+      { role: "system", content: dynamicSystemPrompt + "\n\nCRITICAL: Be extremely concise to save tokens. Only provide necessary info." },
       ...chatHistory,
       { role: "user", content: message }
     ];
 
     const response = await groq.chat.completions.create({
       messages,
-      model: "llama-3.3-70b-versatile",
+      model: "llama-3.1-8b-instant",
       tools: AI_TOOLS as any,
       tool_choice: "auto",
     });
@@ -137,7 +142,7 @@ export async function processBotMessage(params: {
       // Get a final response from the model after tool execution
       const finalResponse = await groq.chat.completions.create({
         messages,
-        model: "llama-3.3-70b-versatile",
+        model: "llama-3.1-8b-instant",
       });
 
       return finalResponse.choices[0].message.content || "";

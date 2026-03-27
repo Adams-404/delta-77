@@ -62,7 +62,23 @@ export async function getUserContext(userId: string | undefined | null, phoneNum
         .where(eq(contributionsTable.memberId, userId))
     : [];
 
+  // 4. Get User Profile
+  let user: any = null;
+  if (userId) {
+    [user] = await db.select().from(userTable).where(eq(userTable.id, userId));
+  } else if (phoneNumber) {
+    const local = phoneNumber.slice(-10);
+    [user] = await db.select().from(userTable).where(
+      or(
+        eq(userTable.phoneNumber, phoneNumber),
+        eq(userTable.phoneNumber, `0${local}`),
+        eq(userTable.phoneNumber, local)
+      )
+    );
+  }
+
   return {
+    user: user ? { id: user.id, name: user.name } : null,
     circles: userCircles,
     rounds: activeRounds,
     contributions: recentContributions,

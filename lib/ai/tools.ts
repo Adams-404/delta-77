@@ -5,12 +5,15 @@ import {
   searchCirclesCore,
   joinCircleCore
 } from "@/app/actions/circles";
-import { db } from "@/lib/db";
+import { db } from "@/lib/db/client";
 import {
   contributions as contributionsTable,
-  user as userTable
+  user as userTable,
+  circles as circlesTable,
+  rounds as roundsTable,
+  circleMembers as circleMembersTable
 } from "@/lib/db/schema";
-import { eq, or } from "drizzle-orm";
+import { eq, or, and, desc } from "drizzle-orm";
 
 /**
  * Definition of tools the AI Agent can use.
@@ -65,13 +68,16 @@ export const AI_TOOLS = [
     type: "function",
     function: {
       name: "join_circle",
-      description: "Join an existing savings circle. Requires a valid Circle ID. If the user doesn't have an ID, use search_circles first.",
+      description: "ONLY use this if the user says they want to JOIN or JOINING a circle (e.g. 'I want to join the TEST circle'). NEVER use this for contributions or payments.",
       parameters: {
         type: "object",
         properties: {
-          circleId: { type: "string", description: "The unique ID of the circle to join. NEVER guess this ID; if unknown, ask the user to provide it." }
+          inviteCodeOrSlug: {
+            type: "string",
+            description: "The slug or invite code of the circle."
+          }
         },
-        required: ["circleId"]
+        required: ["inviteCodeOrSlug"]
       }
     }
   },
@@ -80,6 +86,31 @@ export const AI_TOOLS = [
     function: {
       name: "get_financial_summary",
       description: "Get a summary of the user's current savings and active circles.",
+      parameters: {
+        type: "object",
+        properties: {}
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "check_contribution_status",
+      description: "Use this whenever the user wants to PAY, CONTRIBUTE, or CHECK STATUS for a specific circle (e.g. 'I want to pay for Groq', 'Status of Enyata'). Returns the payment buttons.",
+      parameters: {
+        type: "object",
+        properties: {
+          circleIdOrSlug: { type: "string", description: "The ID or Slug of the circle to check." }
+        },
+        required: ["circleIdOrSlug"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "check_all_my_contributions_summary",
+      description: "Get a prioritized summary of all contributions for every circle the user is a member of. Use this for general inquiries like 'have I paid?' or 'what is my status?'.",
       parameters: {
         type: "object",
         properties: {}
@@ -128,12 +159,16 @@ export async function executeAiAction(toolCall: any, context: { userId?: string,
         if (!effectiveUserId) return { error: regMessage };
 
         const required = ["name", "amount", "frequency", "maxMembers"];
-        const missing = required.filter(field => !args[field]);
+        const missing = [];
+        if (!args.name || args.name.trim() === "") missing.push("name");
+        if (!args.amount || parseFloat(args.amount) <= 0) missing.push("amount (must be > 0)");
+        if (!args.frequency) missing.push("frequency");
+        if (!args.maxMembers || args.maxMembers <= 0) missing.push("maxMembers (must be at least 1)");
 
         if (missing.length > 0) {
           return {
-            error: `Missing required information: ${missing.join(", ")}.`,
-            instruction: "Please ask the user for these specific details. You can suggest they use the Circle Creation Form."
+            error: `Missing or invalid information: ${missing.join(", ")}.`,
+            instruction: "Please ask the user for these specific details. Do not call this tool with empty or zero values."
           };
         }
 
@@ -177,6 +212,96 @@ export async function executeAiAction(toolCall: any, context: { userId?: string,
         const contributions = await db.select().from(contributionsTable).where(eq(contributionsTable.memberId, effectiveUserId));
         const totalSaved = contributions.length > 0 ? contributions.reduce((sum, c) => sum + parseFloat(c.amountPaid), 0) : 0;
         return { totalSaved, contributionCount: contributions.length };
+
+      case "check_contribution_status": {
+        if (!effectiveUserId) return { error: regMessage };
+        if (!args.circleIdOrSlug) return { error: "I need a circle ID to check status." };
+
+        // 1. Find Circle
+        let circle: any;
+        const [bySlug] = await db.select().from(circlesTable).where(eq(circlesTable.slug, args.circleIdOrSlug));
+        circle = bySlug;
+        if (!circle) {
+          const [byId] = await db.select().from(circlesTable).where(eq(circlesTable.id, args.circleIdOrSlug));
+          circle = byId;
+        }
+        if (!circle) return { error: "Circle not found." };
+
+        // 2. Find Current Round
+        const ongoingRounds = await db.select().from(roundsTable).where(and(eq(roundsTable.circleId, circle.id), eq(roundsTable.status, "ongoing")));
+        let currentRound = ongoingRounds[0];
+
+        if (!currentRound) {
+          return {
+            circleName: circle.name,
+            hasPaid: false,
+            message: "No active round found for this circle.",
+            actionTag: `[ACTION: CONTRIBUTION_CONTROLS: circleId=${circle.id}; hasPaid=false; slug=${circle.slug}; amount=${circle.contributionAmount}]`
+          };
+        }
+
+        // 3. Find Contribution
+        const [contribution] = await db.select().from(contributionsTable).where(and(eq(contributionsTable.roundId, currentRound.id), eq(contributionsTable.memberId, effectiveUserId), eq(contributionsTable.paymentVerified, true)));
+
+        return {
+          circleName: circle.name,
+          amount: circle.contributionAmount,
+          hasPaid: !!contribution,
+          roundNumber: currentRound.roundNumber,
+          deadline: currentRound.endsAt ? new Date(currentRound.endsAt).toLocaleDateString() : "No deadline set",
+          actionTag: `[ACTION: CONTRIBUTION_CONTROLS: circleId=${circle.id}; hasPaid=${!!contribution}; slug=${circle.slug}; amount=${circle.contributionAmount}; contributionId=${contribution?.id || ""}]`
+        };
+      }
+
+      case "check_all_my_contributions_summary": {
+        if (!effectiveUserId) return { error: regMessage };
+
+        // 1. Get all memberships for the user
+        const memberships = await db.select().from(circleMembersTable).where(eq(circleMembersTable.userId, effectiveUserId));
+        if (memberships.length === 0) return { message: "You are not a member of any circles yet." };
+
+        const summary = [];
+        for (const member of memberships) {
+          const [circle] = await db.select().from(circlesTable).where(eq(circlesTable.id, member.circleId));
+          if (!circle) continue;
+
+          const ongoingRounds = await db.select().from(roundsTable).where(and(eq(roundsTable.circleId, circle.id), eq(roundsTable.status, "ongoing")));
+          const currentRound = ongoingRounds[0];
+
+          if (!currentRound) {
+            summary.push({ name: circle.name, slug: circle.slug, status: "No active round", amount: circle.contributionAmount, hasPaid: false });
+            continue;
+          }
+
+          const [contribution] = await db.select().from(contributionsTable).where(and(eq(contributionsTable.roundId, currentRound.id), eq(contributionsTable.memberId, effectiveUserId), eq(contributionsTable.paymentVerified, true)));
+
+          summary.push({
+            id: circle.id,
+            name: circle.name,
+            slug: circle.slug,
+            amount: circle.contributionAmount,
+            hasPaid: !!contribution,
+            deadline: currentRound.endsAt || null,
+            round: currentRound.roundNumber,
+            // Pre-built tag so the AI doesn't have to guess or construct it
+            actionTag: `[ACTION: CONTRIBUTION_CONTROLS: circleId=${circle.id}; hasPaid=${!!contribution}; slug=${circle.slug}; amount=${circle.contributionAmount}; contributionId=${contribution?.id || ""}]`
+          });
+        }
+
+        // Sort by deadline (earliest first)
+        summary.sort((a, b) => {
+          if (!a.deadline) return 1;
+          if (!b.deadline) return -1;
+          return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+        });
+
+        return {
+          totalCircles: summary.length,
+          allCircles: summary, // Return the full list for the AI to see
+          summaryText: "I've checked all your circles. Here is the status prioritized by deadlines:",
+          instruction: "CRITICAL: You MUST list EVERY circle found in 'allCircles'. For UNPAID circles, ALWAYS append the 'actionTag' provided for that circle. DO NOT write the tag yourself."
+        };
+      }
 
       default:
         return { error: "Unknown action" };

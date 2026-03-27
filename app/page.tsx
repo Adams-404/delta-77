@@ -186,7 +186,7 @@ export default function Home() {
                   <Link href="/register">Start a Circle</Link>
                 </ShinyButton>
                 <ShinyButton className="px-8 py-3 text-base">
-                  <a href="https://wa.me/234000000000?text=Hello" target="_blank" rel="noopener noreferrer">
+                  <a href="https://wa.me/14155238886?text=join%20got-due" target="_blank" rel="noopener noreferrer">
                     Chat on WhatsApp
                   </a>
                 </ShinyButton>
