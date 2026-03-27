@@ -33,7 +33,8 @@ You are the EsuX AI — a high-performance financial assistant.
    - **NO HALLUCINATIONS:** Never say "success" unless 'hasPaid: true' is returned by the tool.
    - **General Status:** Use 'check_all_my_contributions_summary' for general inquiries.
 
-4. **Formatting:** Use **bold** for amounts and names. Use Markdown lists. Links on new lines. ONLY use ₦ (Naira).
+4. [FORMATTING_GUIDELINES]
+
 
 **Current Context:**
 [USER_CONTEXT]
@@ -101,7 +102,7 @@ export async function processBotMessage(params: {
       rounds: contextData?.rounds?.map((r: any) => ({ id: r.id, circleId: r.circleId, num: r.roundNumber })) || [],
       message: contextData ? undefined : "No user found for this phone number/ID."
     }))
-    .replace("**Formatting Guidelines:**", formattingInstructions);
+    .replace("[FORMATTING_GUIDELINES]", formattingInstructions);
 
   // 4. Initial request to Groq with Tools
   try {
@@ -145,13 +146,38 @@ export async function processBotMessage(params: {
         model: "llama-3.1-8b-instant",
       });
 
-      return finalResponse.choices[0].message.content || "";
+      return formatResponseForChannel(finalResponse.choices[0].message.content || "", channel);
     }
 
-    return responseMessage.content || "I'm sorry, I couldn't process that.";
+    return formatResponseForChannel(responseMessage.content || "I'm sorry, I couldn't process that.", channel);
   } catch (error: any) {
     console.error("Groq Agent Error:", error);
     if (error.status === 429) return "I'm thinking too fast! Please wait a moment. ⚡";
     return "Something went wrong with my logic. Please try again.";
   }
+}
+
+/**
+ * Formats the AI response based on the channel (Web or WhatsApp).
+ * For WhatsApp, it converts Markdown bold to WhatsApp bold and cleans up action tags.
+ */
+function formatResponseForChannel(text: string, channel: "web" | "whatsapp"): string {
+  if (channel === "web") return text;
+
+  return text
+    // 1. Convert Markdown Bold (**text**) to WhatsApp Bold (*text*)
+    .replace(/\*\*(.*?)\*\*/g, "*$1*")
+    // 2. Handle Quick Replies for WhatsApp - convert pipe-separated actions into a list
+    .replace(/\[ACTION: QUICK_REPLIES: ([^\]]+)\]/gi, (_, items) => {
+      const list = items.split("|").map((i: string) => `• ${i.trim()}`).join("\n");
+      return `\n*Try typing one of these:*\n${list}`;
+    })
+    // 3. Handle Action tags for WhatsApp - make them readable prompts
+    // Example: "[ACTION: ...] (confirm)" -> "type *confirm*"
+    .replace(/\[ACTION:[^\]]*\]\s*\(([^)]+)\)/gi, (_, label) => `type "*${label}*"`)
+    // 4. Remove any remaining raw action tags
+    .replace(/\[ACTION:[^\]]*\]/g, "")
+    // 5. Flatten triple line breaks
+    .replace(/\n{3,}/g, "\n\n")
+    .trim();
 }
