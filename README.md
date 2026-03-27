@@ -131,7 +131,7 @@ This project was built with ❤️ by:
 
 ## 📞 Get in Touch
 
-Have questions or want to collaborate? Reach out to us at [hello@esux.app](mailto:hello@esux.app) or find us on [X (Twitter)](https://x.com/your-handle).
+Have questions or want to collaborate? Reach out to the project Lead at [muhammadadamualiyu33@gmail.com](mailto:muhammadadamualiyu33@gmail.com).
 
 ---
 *Built for the Interswitch/Google AI Hackathon 2024.*
