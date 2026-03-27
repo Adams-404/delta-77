@@ -73,19 +73,22 @@ This ensures that even with one pool of physical cash, we know exactly who owns 
 
 ---
 
-## 🤖 WhatsApp Bot Implementation
+### AI Agent Tool-Set (The Logic Engine)
+In our agentic implementation, Groq (Llama 3.1) doesn't just "chat" — it executes backend tasks through a set of **Functional Tools**. These include:
 
-The bot isn't just a simple responder; it's an **Agent**.
+| Tool Name | Frontend Role | Backend Logic |
+| :--- | :--- | :--- |
+| `create_circle` | Initiates setup | Uses `createCircleCore` action to define a new Esusu circle in the database. |
+| `list_my_circles` | Displays status | Fetches active memberships for the user derived from their phone number. |
+| `get_circle_details` | In-depth info | Retrieves specific round status, members, and upcoming payouts. |
+| `check_contribution_status` | Status & Payouts | Analyzes current ongoing round and generates contextual payment links. |
+| `get_financial_summary` | Aggregate Data | Summarizes total contributions and participation count for the user. |
 
-**Sandbox WhatsApp Details:**
-- **Number:** +1 (415) 523-8886
-- **Activation Code:** `join got-due`
-
-1. **Input**: A user sends a message like *"I want to pay for my Monday circle"*.
-2. **Context**: The system identifies the user by their phone number and retrieves their active circles.
-3. **Reasoning**: Groq (Llama 3.1) analyzes the intent and decides it needs to call a "tool" (e.g., `getCircleDetails`).
-4. **Action**: The tool queries the database and returns the current status.
-5. **Output**: The AI agent formats a friendly response: *"You're all set! I've found your Monday circle. The contribution is ₦5,000. Here is your unique payment link..."*
+### Identity Linkage: Bridging WhatsApp and the Web
+One of the core challenges was ensuring that a user on WhatsApp is the same user on our dashboard.
+- **The Bridge**: We use the **International Format Phone Number** as a unique ID.
+- **Verification**: On first sign-up (Web), users verify their phone number. 
+- **Tool Context**: When a message enters via Twilio, our agent queries the DB for a user linked to that sender's phone number. If no link is found, the agent **proactively requests registration** to maintain security.
 
 ---
 
@@ -119,10 +122,15 @@ npm run dev
 
 ---
 
-## 🔒 Security Measures
-- **Data Encryption**: Sensitive user data is encrypted at rest.
-- **Webhook Validation**: All incoming requests from Twilio and Interswitch are validated using HMAC signatures.
-- **Rate Limiting**: API routes are protected against brute-force attacks.
+## 🔒 Security & Privacy
+
+### 1. Data Protection
+- **BVN (Bank Verification Number)**: We follow industry-standard compliance. BVNs are used for identity verification via Interswitch and **NEVER** stored in our database. We only store an encrypted `bvnHash` for record-keeping.
+- **Data at Rest**: All sensitive information is encrypted at rest within our production environment.
+
+### 2. Transaction Integrity
+- **Webhook HMAC Validation**: Secure verification is enabled for all payment callbacks to prevent "transaction spoofing".
+- **AI Link Scrubbing**: Our agent is strictly configured to **NEVER** send external payment links. It only recognizes the official application domain, preventing "phishing via bot" attacks.
 
 ---
 *Maintained by the EsuX Engineering Team.*

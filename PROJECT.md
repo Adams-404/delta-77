@@ -16,17 +16,19 @@ EsuX solves all of this.
 
 ---
 
-## How It Works
+## Journey of an EsuX User (The Lifecycle)
 
-1. An organizer creates a savings circle on the EsuX website or via WhatsApp bot
-2. They set the contribution amount, frequency (weekly/monthly), and payout order
-3. Members are invited via WhatsApp — they accept or decline with one tap
-4. Each member verifies their BVN once (via Interswitch APIs) — no ghost members
-5. The bot reminds everyone before deadlines
-6. Members pay directly through the bot
-7. Every payment is announced to the whole circle in real time
-8. When a round completes, the full pot is automatically sent to whoever's turn it is
-9. The cycle resets and repeats
+1. **Onboarding**: A user signs up on the dashboard and verifies their Identitiy (BVN).
+2. **On-Ramp**: They create a savings circle or join one via an invite code.
+3. **WhatsApp Linkage**: The user's phone number acts as their "Financial Passport".
+4. **Active Phase (The Rotation)**:
+   - Every period (weekly/monthly), the **AI Agent** checks the ledger.
+   - For **Round 1**, all members are notified to pay their share.
+   - Payments are processed securely via the Interswitch checkout widget.
+5. **Real-time Awareness**: The agent announces every payment to the whole circle in real time.
+6. **Consensus (The Voice)**: If the group needs to change the contribution amount or circle name, a **Majority Vote** is triggered. Changes only occur once a majority of members approve.
+7. **The Payout**: When Round 1 is complete, the total pot is disbursed to the recipient assigned to Round 1.
+8. **Succession**: The cycle resets to Round 2, with the next member in the priority list set as the recipient.
 
 ---
 
