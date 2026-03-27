@@ -161,31 +161,66 @@ export async function processBotMessage(params: {
 
 /**
  * Formats the AI response based on the channel (Web or WhatsApp).
- * For WhatsApp, it converts Markdown bold to WhatsApp bold and cleans up action tags.
+ * For WhatsApp, it converts Markdown bold to WhatsApp bold, cleans up action tags,
+ * and strictly prevents external payment link hallucinations.
  */
 function formatResponseForChannel(text: string, channel: "web" | "whatsapp"): string {
-  if (channel === "web") return text;
+  // 1. Scrub external payment hallucinations (Paystack, etc.) regardless of channel
+  // We strictly ONLY allow our own app URL.
+  const allowedUrl = process.env.NEXT_PUBLIC_APP_URL || "https://esux.vercel.app";
+  const forbiddenMatch = /(https?:\/\/(?!localhost|esux\.vercel\.app)[a-zA-Z0-9.\/-]+\b)/gi;
+  
+  let cleanedText = text.replace(forbiddenMatch, (foundUrl) => {
+    console.warn(`[Security] SCRUBBED hallucinated URL: ${foundUrl}`);
+    return "[Please use the official EsuX links provided above]";
+  });
 
-  return text
-    // 1. Convert Markdown Bold (**text**) to WhatsApp Bold (*text*)
+  if (channel === "web") return cleanedText;
+
+  return cleanedText
+    // 2. Convert Markdown Bold (**text**) to WhatsApp Bold (*text*)
     .replace(/\*\*(.*?)\*\*/g, "*$1*")
-    // 2. Handle Quick Replies for WhatsApp - convert pipe-separated actions into a list
+    // 3. Handle Quick Replies for WhatsApp - convert pipe-separated actions into a list
     .replace(/\[ACTION: QUICK_REPLIES: ([^\]]+)\]/gi, (_, items) => {
       const list = items.split("|").map((i: string) => `• ${i.trim()}`).join("\n");
       return `\n*Try typing one of these:*\n${list}`;
     })
-    // 3. Handle Payment Action tags for WhatsApp - make them readable prompts + provide links
-    .replace(/\[ACTION: CONTRIBUTION_CONTROLS:[^\]]*slug=([^;\]]+); amount=([^;\]]+)?[^\]]*\]/gi, (match, slug, amount) => {
-      const baseUrl = process.env.NEXT_PUBLIC_APP_URL || "https://esux.vercel.app";
-      const url = `${baseUrl}/dashboard/circles/${slug}`;
-      return `*Payment Needed:* ${amount ? "₦" + amount : "Contribution"}\nLink to pay securely: ${url}\n\n(After paying, reply with "I've paid" or "check now" for me to verify your payment status)`;
+    // 4. Handle Payment Action tags for WhatsApp - make them readable prompts + provide links
+    // We parse the fields inside the tag to decide what to show
+    .replace(/\[ACTION: CONTRIBUTION_CONTROLS: ([^\]]+)\]/gi, (_, fieldsStr) => {
+      // Parse fields: field1=val1; field2=val2
+      const fields: Record<string, string> = {};
+      fieldsStr.split(";").forEach((pair: string) => {
+        const [k, v] = pair.split("=").map((s: string) => s.trim());
+        if (k && v) fields[k] = v;
+      });
+
+      const isPaid = fields.hasPaid === "true";
+      const slug = fields.slug;
+      const amount = fields.amount;
+      const contributionId = fields.contributionId;
+
+      if (isPaid) {
+        let resp = `*Status:* Paid ✅`;
+        if (contributionId) {
+          resp += `\n*Receipt:* ${allowedUrl}/dashboard/receipt/${contributionId}`;
+        }
+        return resp;
+      }
+
+      if (slug) {
+        const payUrl = `${allowedUrl}/dashboard/circles/${slug}/payment`;
+        return `*Status:* Pending ⏳\n*Pay Here:* ${payUrl}\n(Reply with "check now" after paying)`;
+      }
+
+      return `*Status:* Processing...`;
     })
-    // 4. Handle remaining Action tags for WhatsApp - make them readable prompts
+    // 5. Handle remaining Action tags for WhatsApp - make them readable prompts
     // Example: "[ACTION: ...] (confirm)" -> "type *confirm*"
     .replace(/\[ACTION:[^\]]*\]\s*\(([^)]+)\)/gi, (_, label) => `type "*${label}*"`)
-    // 5. Remove any remaining raw action tags
+    // 6. Remove any remaining raw action tags
     .replace(/\[ACTION:[^\]]*\]/g, "")
-    // 6. Flatten triple line breaks
+    // 7. Flatten triple line breaks
     .replace(/\n{3,}/g, "\n\n")
     .trim();
 }
