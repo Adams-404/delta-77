@@ -364,9 +364,9 @@ export default function ChatPage() {
                           </div>
                           
                           {(() => {
-                             const actionTag = msg.content.match(/\[ACTION: CONTRIBUTION_CONTROLS: (.*?)\]/)?.[1] || "";
-                             const params = Object.fromEntries(actionTag.split('; ').map(p => p.split('=')));
-                             const hasPaid = params.hasPaid === 'true';
+                              const actionTag = msg.content.match(/\[\s*ACTION:\s*CONTRIBUTION_CONTROLS:\s*(.*?)\]/)?.[1] || "";
+                              const params = Object.fromEntries(actionTag.split(';').map(p => p.split('=').map(s => s.trim())));
+                              const hasPaid = params.hasPaid === 'true';
 
                              return (
                                <div className="space-y-4">
@@ -413,12 +413,31 @@ export default function ChatPage() {
                         </div>
                       )}
 
+                      {/* Special Action UI: Quick Replies */}
+                      {msg.role === "assistant" && msg.content.includes("QUICK_REPLIES") && index === messages.length - 1 && (
+                        <div className="flex flex-wrap gap-2 mt-4 animate-in fade-in slide-in-from-bottom-1 duration-500">
+                          {(() => {
+                            const actionTag = msg.content.match(/\[\s*ACTION:\s*QUICK_REPLIES:\s*(.*?)\]/)?.[1] || "";
+                            const options = actionTag.split("|").map(s => s.trim()).filter(Boolean);
+                            return options.map((option, i) => (
+                              <button
+                                key={i}
+                                onClick={() => handleSend(option)}
+                                className="px-3 py-1.5 bg-[#6C3AFA]/10 border border-[#6C3AFA]/20 rounded-full text-[11px] font-bold text-[#A78BFA] hover:bg-[#6C3AFA]/20 active:scale-95 transition-all"
+                              >
+                                {option}
+                              </button>
+                            ));
+                          })()}
+                        </div>
+                      )}
+
                       <div className="text-[10px] font-bold text-muted-foreground/40 uppercase tracking-widest px-1">
                         {new Date(msg.createdAt).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
                       </div>
-                   </div>
-                </motion.div>
-              ))}
+                    </div>
+                  </motion.div>
+                ))}
               
               {isLoading && (
                 <div className="flex gap-4">

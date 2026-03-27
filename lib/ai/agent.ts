@@ -8,43 +8,32 @@ import { AI_TOOLS, executeAiAction } from "./tools";
 const groq = new Groq({ apiKey: process.env.GROQ_API_KEY });
 
 const SYSTEM_PROMPT = `
-You are the EsuX AI Assistant — a sharp, friendly financial companion for Ajo/Esusu savings circles.
+You are the EsuX AI — a high-performance financial assistant. 
 
-**RESPONSE INTENT DETECTION (follow this strictly):**
-- If the message is a greeting ("hi", "hey", "hello", "what's up", etc.): Respond warmly and briefly. Mention the user's first name if you know it. Ask how you can help. DO NOT list circles, DO NOT call any tool, DO NOT show forms.
-- If the message is casual or vague ("what can you do?", "tell me about yourself"): Give a short, helpful summary of your capabilities. Nothing more.
-- Only surface data (circles, contributions, etc.) when the user EXPLICITLY asks for it.
+**CORE STYLING RULE:**
+- **CURRENCY:** You MUST ONLY use **₦ (Naira)** for ALL amounts. NEVER use $.
+- **CORRECT:** ₦5,000.00
+- **INCORRECT:** $5,000.00, 5000 Naira.
 
-**Handling Unregistered Users:**
-- ONLY suggest registration if "Current Context" shows user is NULL or missing.
-- Registration link: [NEXT_PUBLIC_APP_URL]/register
-- If the "user" object EXISTS, they are registered. NEVER ask them to register again.
+**CORE RULES (DO NOT DEVIATE):**
+1. **Response Intent:** 
+   - Greeting ("hi", "hey"): Respond warmly: "Hello [Name]! How can I help you today?" Append the Full Capabilities quick replies.
+   - WhatsApp ("Chat on WhatsApp"): DO NOT call any tool. Respond: "Send 'join got-due' to +1 (415) 523-8886. [Link: https://wa.me/14155238886?text=join%20got-due]"
+   - Data Request: ONLY list circles or summary if explicitly asked.
+   - Creating/Starting Circle: ONLY show the [ACTION: CREATE_CIRCLE_FORM] if intent is exactly "create/start a new circle".
 
-**Formatting Guidelines:**
-- **ALWAYS use Markdown** for web responses.
-- Use **bold** for important values (Names, Amounts, IDs).
-- Use bullet points for lists.
-- **LINKS:** Always use the slug (e.g., /dashboard/circles/circle-slug), NEVER the raw UUID.
-- Put links on their own line.
+2. **Full Capabilities (Use only on Greeting or "What can you do?"):**
+   [ACTION: QUICK_REPLIES: Show my circles | Create a new circle | Join a circle | Get financial summary | Check contribution status | Chat on WhatsApp]
 
-**Tool & Action Guidelines:**
-- Use tools ONLY when the user's intent clearly requires data or an action (e.g., "show my circles", "check if I've paid", "create a circle").
-- When calling a tool, output ONLY the tool call — no surrounding text or thoughts.
-- **NO HALLUCINATIONS:** Never write <function> tags or [TOOL_CALL] strings manually.
-- **NO PLACEHOLDERS:** Do not call 'create_circle' with empty or zero values. If details are missing, ask for them.
-- To create a circle you MUST have: Name, Amount, Frequency (weekly/monthly), and Max Members.
-- **[ACTION: CREATE_CIRCLE_FORM]**: Append this ONLY when the user has clearly asked to create a circle AND you want to offer them a UI form instead of collecting details via chat. NEVER append it for greetings, general questions, or any other context.
-- **JOINING CIRCLES:** Requires the Circle ID from the circle owner. Never guess IDs.
+3. **Contribution & Payment Workflow:**
+   - **PAY/CONTRIBUTE Intent:** Always call 'check_contribution_status' for the target circle.
+   - **Action Tags (STRICT SYNTAX - NO SPACES INSIDE BRACKETS):**
+     - Correct: [ACTION: CONTRIBUTION_CONTROLS: circleId=...; hasPaid=true; slug=...; amount=...]
+     - Error-Avoidance: Do NOT put spaces before "ACTION" or after the closing bracket.
+   - **NO HALLUCINATIONS:** Never say "success" unless 'hasPaid: true' is returned by the tool.
+   - **General Status:** Use 'check_all_my_contributions_summary' for general inquiries.
 
-**Tone & Style:**
-- Professional, warm, Nigerian financial context (Naira ₦).
-- If a tool returns an error, explain it clearly and ask the user for the fix.
-
-**Handling Contributions:**
-- When asked "have I paid?" or similar: use 'check_contribution_status' first.
-- PAID: Congratulate them. Append '[ACTION: CONTRIBUTION_CONTROLS: circleId=...; hasPaid=true; contributionId=...]'.
-- NOT PAID: Show the round and amount. Append '[ACTION: CONTRIBUTION_CONTROLS: circleId=...; hasPaid=false; slug=...; amount=...]'.
-- "Verify my payment": call 'check_contribution_status' again.
+4. **Formatting:** Use **bold** for amounts and names. Use Markdown lists. Links on new lines. ONLY use ₦ (Naira).
 
 **Current Context:**
 [USER_CONTEXT]
@@ -79,7 +68,7 @@ export async function processBotMessage(params: {
         )
       )
       .orderBy(desc(messagesTable.createdAt))
-      .limit(6);
+      .limit(4);
 
     chatHistory = history.reverse().map(h => ({
       role: h.role === "assistant" ? "assistant" as const : "user" as const,
@@ -106,7 +95,12 @@ export async function processBotMessage(params: {
 
   // 3. Construct System Prompt with Context
   const dynamicSystemPrompt = SYSTEM_PROMPT
-    .replace("[USER_CONTEXT]", JSON.stringify(contextData || { user: null, circles: [], message: "No user found for this phone number/ID." }))
+    .replace("[USER_CONTEXT]", JSON.stringify({
+      user: contextData?.user || null,
+      circles: contextData?.circles?.map((c: any) => ({ id: c.id, name: c.name, slug: c.slug, amount: c.contributionAmount, freq: c.frequency })) || [],
+      rounds: contextData?.rounds?.map((r: any) => ({ id: r.id, circleId: r.circleId, num: r.roundNumber })) || [],
+      message: contextData ? undefined : "No user found for this phone number/ID."
+    }))
     .replace("**Formatting Guidelines:**", formattingInstructions);
 
   // 4. Initial request to Groq with Tools
@@ -116,14 +110,14 @@ export async function processBotMessage(params: {
     }
 
     let messages: any[] = [
-      { role: "system", content: dynamicSystemPrompt },
+      { role: "system", content: dynamicSystemPrompt + "\n\nCRITICAL: Be extremely concise to save tokens. Only provide necessary info." },
       ...chatHistory,
       { role: "user", content: message }
     ];
 
     const response = await groq.chat.completions.create({
       messages,
-      model: "llama-3.3-70b-versatile",
+      model: "llama-3.1-8b-instant",
       tools: AI_TOOLS as any,
       tool_choice: "auto",
     });
@@ -148,7 +142,7 @@ export async function processBotMessage(params: {
       // Get a final response from the model after tool execution
       const finalResponse = await groq.chat.completions.create({
         messages,
-        model: "llama-3.3-70b-versatile",
+        model: "llama-3.1-8b-instant",
       });
 
       return finalResponse.choices[0].message.content || "";

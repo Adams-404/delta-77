@@ -10,7 +10,8 @@ import {
   contributions as contributionsTable,
   user as userTable,
   circles as circlesTable,
-  rounds as roundsTable
+  rounds as roundsTable,
+  circleMembers as circleMembersTable
 } from "@/lib/db/schema";
 import { eq, or, and, desc } from "drizzle-orm";
 
@@ -67,13 +68,16 @@ export const AI_TOOLS = [
     type: "function",
     function: {
       name: "join_circle",
-      description: "Join an existing savings circle. Requires a valid Circle ID. If the user doesn't have an ID, use search_circles first.",
+      description: "ONLY use this if the user says they want to JOIN or JOINING a circle (e.g. 'I want to join the TEST circle'). NEVER use this for contributions or payments.",
       parameters: {
         type: "object",
         properties: {
-          circleId: { type: "string", description: "The unique ID of the circle to join. NEVER guess this ID; if unknown, ask the user to provide it." }
+          inviteCodeOrSlug: {
+            type: "string",
+            description: "The slug or invite code of the circle."
+          }
         },
-        required: ["circleId"]
+        required: ["inviteCodeOrSlug"]
       }
     }
   },
@@ -92,13 +96,24 @@ export const AI_TOOLS = [
     type: "function",
     function: {
       name: "check_contribution_status",
-      description: "Check if the user has already made a contribution for the current active round of a specific circle. Returns status and payment details if found.",
+      description: "Use this whenever the user wants to PAY, CONTRIBUTE, or CHECK STATUS for a specific circle (e.g. 'I want to pay for Groq', 'Status of Enyata'). Returns the payment buttons.",
       parameters: {
         type: "object",
         properties: {
           circleIdOrSlug: { type: "string", description: "The ID or Slug of the circle to check." }
         },
         required: ["circleIdOrSlug"]
+      }
+    }
+  },
+  {
+    type: "function",
+    function: {
+      name: "check_all_my_contributions_summary",
+      description: "Get a prioritized summary of all contributions for every circle the user is a member of. Use this for general inquiries like 'have I paid?' or 'what is my status?'.",
+      parameters: {
+        type: "object",
+        properties: {}
       }
     }
   }
@@ -213,75 +228,78 @@ export async function executeAiAction(toolCall: any, context: { userId?: string,
         if (!circle) return { error: "Circle not found." };
 
         // 2. Find Current Round
-        const ongoingRounds = await db
-          .select()
-          .from(roundsTable)
-          .where(
-            and(
-              eq(roundsTable.circleId, circle.id),
-              eq(roundsTable.status, "ongoing")
-            )
-          );
-        
+        const ongoingRounds = await db.select().from(roundsTable).where(and(eq(roundsTable.circleId, circle.id), eq(roundsTable.status, "ongoing")));
         let currentRound = ongoingRounds[0];
 
         if (!currentRound) {
-          // Check if ANY rounds exist to see what round number we should be on
-          const allRounds = await db
-            .select()
-            .from(roundsTable)
-            .where(eq(roundsTable.circleId, circle.id))
-            .orderBy(desc(roundsTable.roundNumber));
-          
-          if (allRounds.length === 0) {
-            // No rounds yet, so we're starting Round 1
-            return {
-              circleName: circle.name,
-              circleSlug: circle.slug,
-              circleId: circle.id,
-              amount: circle.contributionAmount,
-              roundNumber: 1,
-              hasPaid: false,
-              status: "ready_to_start",
-              message: "The first round hasn't technically started yet, but you can kick it off with your first contribution!"
-            };
-          } else {
-            // Previous rounds exist, we are transitioning to the next one
-            const nextRoundNum = allRounds[0].roundNumber + 1;
-            return {
-              circleName: circle.name,
-              circleSlug: circle.slug,
-              circleId: circle.id,
-              amount: circle.contributionAmount,
-              roundNumber: nextRoundNum,
-              hasPaid: false,
-              status: "between_rounds",
-              message: `Round #${allRounds[0].roundNumber} is finished. You can contribute now to start Round #${nextRoundNum}!`
-            };
-          }
+          return {
+            circleName: circle.name,
+            hasPaid: false,
+            message: "No active round found for this circle.",
+            actionTag: `[ACTION: CONTRIBUTION_CONTROLS: circleId=${circle.id}; hasPaid=false; slug=${circle.slug}; amount=${circle.contributionAmount}]`
+          };
         }
 
         // 3. Find Contribution
-        const [contribution] = await db
-          .select()
-          .from(contributionsTable)
-          .where(
-            and(
-              eq(contributionsTable.roundId, currentRound.id),
-              eq(contributionsTable.memberId, effectiveUserId),
-              eq(contributionsTable.paymentVerified, true)
-            )
-          );
+        const [contribution] = await db.select().from(contributionsTable).where(and(eq(contributionsTable.roundId, currentRound.id), eq(contributionsTable.memberId, effectiveUserId), eq(contributionsTable.paymentVerified, true)));
 
         return {
           circleName: circle.name,
-          circleSlug: circle.slug,
-          circleId: circle.id,
           amount: circle.contributionAmount,
-          roundNumber: currentRound.roundNumber,
           hasPaid: !!contribution,
-          contributionId: contribution?.id || null,
-          paidAt: contribution?.paidAt || null,
+          roundNumber: currentRound.roundNumber,
+          deadline: currentRound.endsAt ? new Date(currentRound.endsAt).toLocaleDateString() : "No deadline set",
+          actionTag: `[ACTION: CONTRIBUTION_CONTROLS: circleId=${circle.id}; hasPaid=${!!contribution}; slug=${circle.slug}; amount=${circle.contributionAmount}; contributionId=${contribution?.id || ""}]`
+        };
+      }
+
+      case "check_all_my_contributions_summary": {
+        if (!effectiveUserId) return { error: regMessage };
+
+        // 1. Get all memberships for the user
+        const memberships = await db.select().from(circleMembersTable).where(eq(circleMembersTable.userId, effectiveUserId));
+        if (memberships.length === 0) return { message: "You are not a member of any circles yet." };
+
+        const summary = [];
+        for (const member of memberships) {
+          const [circle] = await db.select().from(circlesTable).where(eq(circlesTable.id, member.circleId));
+          if (!circle) continue;
+
+          const ongoingRounds = await db.select().from(roundsTable).where(and(eq(roundsTable.circleId, circle.id), eq(roundsTable.status, "ongoing")));
+          const currentRound = ongoingRounds[0];
+
+          if (!currentRound) {
+            summary.push({ name: circle.name, slug: circle.slug, status: "No active round", amount: circle.contributionAmount, hasPaid: false });
+            continue;
+          }
+
+          const [contribution] = await db.select().from(contributionsTable).where(and(eq(contributionsTable.roundId, currentRound.id), eq(contributionsTable.memberId, effectiveUserId), eq(contributionsTable.paymentVerified, true)));
+
+          summary.push({
+            id: circle.id,
+            name: circle.name,
+            slug: circle.slug,
+            amount: circle.contributionAmount,
+            hasPaid: !!contribution,
+            deadline: currentRound.endsAt || null,
+            round: currentRound.roundNumber,
+            // Pre-built tag so the AI doesn't have to guess or construct it
+            actionTag: `[ACTION: CONTRIBUTION_CONTROLS: circleId=${circle.id}; hasPaid=${!!contribution}; slug=${circle.slug}; amount=${circle.contributionAmount}; contributionId=${contribution?.id || ""}]`
+          });
+        }
+
+        // Sort by deadline (earliest first)
+        summary.sort((a, b) => {
+          if (!a.deadline) return 1;
+          if (!b.deadline) return -1;
+          return new Date(a.deadline).getTime() - new Date(b.deadline).getTime();
+        });
+
+        return {
+          totalCircles: summary.length,
+          allCircles: summary, // Return the full list for the AI to see
+          summaryText: "I've checked all your circles. Here is the status prioritized by deadlines:",
+          instruction: "CRITICAL: You MUST list EVERY circle found in 'allCircles'. For UNPAID circles, ALWAYS append the 'actionTag' provided for that circle. DO NOT write the tag yourself."
         };
       }
 
